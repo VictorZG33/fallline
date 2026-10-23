@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0d1015"/>
+  <defs>
+    <clipPath id="m"><path d="M40 410 L196 150 L262 236 L330 120 L472 410 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#m)">
+    <rect x="0" y="0" width="512" height="512" fill="#9ed668"/>
+    <path d="M330 120 L472 410 L392 410 L300 182 Z" fill="#f6e23c"/>
+    <path d="M330 120 L420 304 L372 330 L312 170 Z" fill="#f8a01e"/>
+    <path d="M330 120 L384 230 L352 250 L322 150 Z" fill="#e8422e"/>
+    <path d="M330 120 L360 182 L340 194 Z" fill="#b61678"/>
+    <path d="M196 150 L262 236 L232 268 L150 226 Z" fill="#f6e23c"/>
+    <path d="M196 150 L236 202 L206 222 L172 190 Z" fill="#f8a01e"/>
+    <path d="M330 120 L362 186 L344 172 L328 196 L314 166 L298 178 Z" fill="#ffffff"/>
+    <path d="M196 150 L218 179 L204 174 L194 190 L184 172 L172 182 Z" fill="#ffffff"/>
+  </g>
+  <path d="M318 196 C 300 260, 356 300, 330 360 S 300 400, 312 430" fill="none" stroke="#8fd6ff" stroke-width="16" stroke-linecap="round"/>
+</svg>

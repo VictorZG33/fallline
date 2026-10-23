@@ -1,0 +1,118 @@
+# Fall Line · 滚落线
+
+A free 3D ski map for planning ski days, built to bring back what FATMAP did
+best. Live at **https://wentaoz.com/fallline/** once GitHub Pages is on (see
+[Deploy](#deploy)).
+
+FATMAP 被 Strava 收购后下线了。滚落线把它最好用的部分做回来：3D 地形、坡度和坡向着色、全球雪道和缆车、GPX 轨迹，以及离线地图。手机上用浏览器打开，"添加到主屏幕"就像原生 app。
+
+## What it does
+
+- **3D terrain** you can tilt and spin, on satellite imagery, a white winter
+  map, or OpenTopoMap.
+- **Slope-angle shading** in 5° bands from 20° up, on the usual avalanche-terrain
+  breaks (30°, 35°, 45°). Tap a band in the legend to hide it, for example to
+  show only 30° and steeper.
+- **Aspect shading**: which way every slope faces, to find cold north-facing
+  snow or spring corn on the south faces. Tap compass sectors to filter.
+- **Sun & shade**: hillshading from the real sun position for any date and
+  time, with sunrise and sunset.
+- **Runs and lifts** coloured by local convention (green / blue / black diamond
+  in North America and China, blue / red / black in Europe, and so on). 52
+  resorts ship as offline packs; everywhere else loads live from OpenStreetMap.
+- **Tap a run** for its length, vertical, average and steepest pitch, the
+  steepest terrain under it, and an elevation profile coloured by slope angle.
+  Scrub the profile to see that point on the map. "Fly down" flies the camera
+  down the run.
+- **Tap anywhere** for elevation, slope angle and aspect at that spot.
+- **GPX**: import tracks from a watch or phone (stats, profile, replay), export
+  any run as GPX.
+- **Offline**: install it to the home screen, then "Save this area" before you
+  go. Terrain, slope shading, imagery and runs work without signal.
+- **Search** 4,762 downhill ski areas worldwide, offline, plus place search.
+- Chinese and English, metric and imperial.
+
+Slope shading is a planning aid. It is not an avalanche forecast.
+
+## How it works
+
+No build step: plain ES modules served as static files.
+
+| Piece | Where |
+| --- | --- |
+| Map engine | [MapLibre GL JS](https://maplibre.org) 6.13, vendored in `vendor/` |
+| Elevation | [Mapterhorn](https://mapterhorn.com) terrain tiles (1–10 m in the US, the Alps, Japan, Scandinavia; 30 m elsewhere) |
+| Slope and aspect | `js/terrain.js`, in a Web Worker: decodes the elevation tiles, takes the gradient over about 12 m (Horn's method), and colours each pixel. Served to MapLibre through the `fl-shade://` protocol |
+| Runs and lifts | [OpenSkiData](https://openskidata.org) packs in `data/packs/` (built by `tools/build-data.mjs`), else live from the [Overpass API](https://overpass-api.de) |
+| Contours | [maplibre-contour](https://github.com/onthegomap/maplibre-contour), from the same elevation tiles |
+| Imagery | Esri World Imagery; OpenTopoMap; [OpenFreeMap](https://openfreemap.org) vector tiles for the winter map and labels |
+| Offline | `sw.js` caches the app, every tile you have seen (up to 6,000), and areas you save |
+
+```
+index.html          the page
+css/app.css         all styles
+js/app.js           settings, panels, search, wiring
+js/style.js         the MapLibre style and how settings change it
+js/terrain.js       elevation tiles → slope/aspect tiles, profiles, point readings
+js/terrain-*.js     the worker and its main-thread client
+js/pistes.js        runs and lifts: packs, Overpass, colours
+js/info.js          the run / lift / track / point sheet and profile chart
+js/gpx.js, sun.js, i18n.js, format.js, offline.js
+sw.js               service worker
+data/               resorts.json, skiareas.json, packs/*.json (generated)
+tools/              build-data.mjs and the resort list
+```
+
+## Run it locally
+
+```sh
+python3 -m http.server 8000
+# open http://localhost:8000
+```
+
+## Deploy
+
+The app is a static site. With GitHub Pages on for this repository it is
+served at `https://wentaoz.com/fallline/`, because project sites inherit the
+custom domain of the `VictorZG33.github.io` user site.
+
+1. Merge into `main`.
+2. Settings → Pages → Build and deployment → Source: *Deploy from a branch*,
+   Branch: `main`, folder `/ (root)`.
+
+After changing any file the service worker precaches (see `SHELL_FILES` in
+`sw.js`), bump `VERSION` there so installed copies pick it up.
+
+## Refresh the trail data
+
+OpenSkiData rebuilds daily from OpenStreetMap.
+
+```sh
+mkdir -p osd && for f in ski_areas runs lifts; do
+  curl -H 'Accept-Encoding: gzip' -o osd/$f.geojson.gz https://tiles.openskimap.org/geojson/$f.geojson
+done
+node tools/build-data.mjs osd           # rewrites data/
+node tools/build-data.mjs osd --check   # just shows what each resort matched
+```
+
+To bundle another resort, add a line to `tools/resorts.mjs` (a name pattern and
+a rough centre) and rebuild. Missing runs or wrong difficulties are fixed
+upstream, in [OpenStreetMap](https://www.openstreetmap.org); the next rebuild
+picks them up.
+
+## Data and licences
+
+- Elevation © [Mapterhorn](https://mapterhorn.com/attribution) and its open-data sources.
+- Runs, lifts and ski areas © OpenStreetMap contributors, via OpenSkiData, under the [ODbL](https://opendatacommons.org/licenses/odbl/).
+- Imagery © Esri, Maxar, Earthstar Geographics. Topo © OpenTopoMap (CC-BY-SA). Vector tiles © OpenFreeMap, OpenMapTiles.
+- MapLibre GL JS and maplibre-contour are BSD-licensed; their licences are in `vendor/`.
+
+Saving areas offline fetches a few hundred to a few thousand tiles at once.
+Keep it to the places you are actually going.
+
+## Next
+
+- Draw and measure your own routes (ski touring lines, with slope stats).
+- Cast shadows, not just hillshade, for the sun mode.
+- Sync tracks and saved routes across devices.
+- A native iOS shell around the same code if the PWA falls short.

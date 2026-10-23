@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="description" content="Fall Line (滚落线): a free 3D ski map after FATMAP, with slope-angle and aspect shading computed in your browser, runs and lifts for ski areas worldwide, GPX tracks and offline maps.">
+<meta name="theme-color" content="#0d1015">
+<meta property="og:title" content="Fall Line · 滚落线">
+<meta property="og:description" content="A free 3D ski map with slope-angle shading, after FATMAP.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://wentaoz.com/fallline/">
+<link rel="canonical" href="https://wentaoz.com/fallline/">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fall Line">
+<title>Fall Line · 滚落线</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
+<link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="map" class="map" role="application" aria-label="Map"></div>
+
+<header class="topbar">
+  <button id="open-search" class="search-pill" type="button">
+    <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+    <span class="brand"><span class="brand-zh">滚落线</span><span class="brand-en">Fall Line</span></span>
+    <span class="search-hint" data-i18n="search.placeholder">Search ski areas</span>
+  </button>
+  <div id="status" class="status" role="status" hidden></div>
+</header>
+
+<nav class="rail" aria-label="Map controls">
+  <button id="btn-layers" class="fab" type="button" data-i18n-label="a11y.layers"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg></button>
+  <button id="btn-3d" class="fab fab-text" type="button" data-i18n-label="a11y.3d">2D</button>
+  <button id="btn-north" class="fab" type="button" data-i18n-label="a11y.north"><svg class="i needle" id="needle" aria-hidden="true"><use href="#i-compass"/></svg></button>
+  <button id="btn-locate" class="fab" type="button" data-i18n-label="a11y.locate"><svg class="i" aria-hidden="true"><use href="#i-locate"/></svg></button>
+</nav>
+
+<div class="dock">
+  <div id="legend" class="legend glass" hidden></div>
+  <div id="sunbar" class="sunbar glass" hidden>
+    <div class="sun-row">
+      <strong class="sun-title"><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg><span data-i18n="sun.title">Sun</span></strong>
+      <input id="sun-date" type="date" class="sun-date">
+      <button id="sun-now" type="button" class="btn small" data-i18n="sun.now">Now</button>
+      <button id="sun-close" type="button" class="icon-btn" data-i18n-label="a11y.close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="sun-track">
+      <input id="sun-time" type="range" min="0" max="1439" step="5" aria-label="Time of day">
+      <div id="sun-day" class="sun-day" aria-hidden="true"></div>
+    </div>
+    <div class="sun-row sun-read">
+      <span id="sun-clock" class="sun-clock"></span>
+      <span id="sun-desc" class="muted"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Search -->
+<section id="sheet-search" class="sheet" hidden aria-labelledby="search-title">
+  <div class="sheet-head">
+    <h2 id="search-title" data-i18n="search.title">Ski areas</h2>
+    <button type="button" class="icon-btn" data-close data-i18n-label="a11y.close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+  <label class="search-field">
+    <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+    <input id="search-input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search" data-i18n-placeholder="search.input">
+  </label>
+  <div id="search-results" class="results"></div>
+</section>
+
+<!-- Layers -->
+<section id="sheet-layers" class="sheet" hidden aria-labelledby="layers-title">
+  <div class="sheet-head">
+    <h2 id="layers-title" data-i18n="layers.title">Map</h2>
+    <button type="button" class="icon-btn" data-close data-i18n-label="a11y.close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+
+  <h3 data-i18n="layers.basemap">Base map</h3>
+  <div class="tiles3" role="radiogroup" data-setting="basemap">
+    <button type="button" role="radio" data-value="satellite" class="map-tile t-satellite"><span data-i18n="basemap.satellite">Satellite</span></button>
+    <button type="button" role="radio" data-value="winter" class="map-tile t-winter"><span data-i18n="basemap.winter">Winter</span></button>
+    <button type="button" role="radio" data-value="topo" class="map-tile t-topo"><span data-i18n="basemap.topo">Topo</span></button>
+  </div>
+
+  <h3 data-i18n="layers.overlay">Terrain shading</h3>
+  <div class="seg" role="radiogroup" data-setting="overlay">
+    <button type="button" role="radio" data-value="slope" data-i18n="overlay.slope">Slope angle</button>
+    <button type="button" role="radio" data-value="aspect" data-i18n="overlay.aspect">Aspect</button>
+    <button type="button" role="radio" data-value="none" data-i18n="overlay.none">None</button>
+  </div>
+  <label class="slider-row"><span data-i18n="layers.opacity">Opacity</span><input id="opacity" type="range" min="0.15" max="1" step="0.05"></label>
+
+  <h3 data-i18n="layers.show">Show</h3>
+  <div class="toggles">
+    <label class="toggle"><span data-i18n="layers.pistes">Runs &amp; lifts</span><input type="checkbox" data-toggle="pistes"><i></i></label>
+    <label class="toggle"><span data-i18n="layers.contours">Contours</span><input type="checkbox" data-toggle="contours"><i></i></label>
+    <label class="toggle"><span data-i18n="layers.labels">Place names</span><input type="checkbox" data-toggle="labels"><i></i></label>
+    <label class="toggle"><span data-i18n="layers.sun">Sun &amp; shade</span><input type="checkbox" id="toggle-sun"><i></i></label>
+  </div>
+
+  <h3 data-i18n="layers.exaggeration">Vertical exaggeration</h3>
+  <div class="seg" role="radiogroup" data-setting="exaggeration">
+    <button type="button" role="radio" data-value="1">1×</button>
+    <button type="button" role="radio" data-value="1.5">1.5×</button>
+    <button type="button" role="radio" data-value="2">2×</button>
+  </div>
+
+  <h3 data-i18n="layers.tracks">My tracks</h3>
+  <ul id="track-list" class="track-list"></ul>
+  <p id="no-tracks" class="muted small" data-i18n="layers.notracks">Import a GPX file from your watch or phone to see it here.</p>
+  <button id="import-gpx" type="button" class="btn"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><span data-i18n="layers.import">Import GPX</span></button>
+  <input id="gpx-input" type="file" accept=".gpx,application/gpx+xml" multiple hidden>
+
+  <h3 data-i18n="layers.offline">Offline</h3>
+  <p class="muted small" data-i18n="layers.offlineHint">Save the area on screen to ride without signal.</p>
+  <p id="offline-estimate" class="small"></p>
+  <div class="actions">
+    <button id="offline-save" type="button" class="btn primary"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="layers.save">Save this area</span></button>
+    <button id="offline-clear" type="button" class="btn" data-i18n="layers.clear">Clear saved maps</button>
+  </div>
+  <progress id="offline-progress" max="1" value="0" hidden></progress>
+  <p id="offline-status" class="muted small"></p>
+
+  <h3 data-i18n="layers.settings">Settings</h3>
+  <div class="setting-row"><span data-i18n="layers.units">Units</span>
+    <div class="seg compact" role="radiogroup" data-setting="units">
+      <button type="button" role="radio" data-value="m">m · km</button>
+      <button type="button" role="radio" data-value="ft">ft · mi</button>
+    </div>
+  </div>
+  <div class="setting-row"><span data-i18n="layers.language">Language</span>
+    <div class="seg compact" role="radiogroup" data-setting="lang">
+      <button type="button" role="radio" data-value="zh">中文</button>
+      <button type="button" role="radio" data-value="en">English</button>
+    </div>
+  </div>
+
+  <h3 data-i18n="layers.about">About Fall Line</h3>
+  <p class="muted small about" data-i18n="about.body"></p>
+  <p class="small"><a href="https://github.com/VictorZG33/fallline" data-i18n="about.source">Source code</a> · <a href="https://wentaoz.com/">wentaoz.com</a></p>
+</section>
+
+<!-- Info -->
+<section id="sheet-info" class="sheet sheet-info" hidden aria-live="polite">
+  <button type="button" class="icon-btn sheet-x" data-close data-i18n-label="a11y.close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+  <div id="info-body" class="info-body"></div>
+</section>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 2.5 8 12 13l9.5-5L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m2.5 12 9.5 5 9.5-5M2.5 16l9.5 5 9.5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><path d="M12 2.5 15.5 12h-7L12 2.5Z" fill="#ff5a3c"/><path d="M12 21.5 8.5 12h7L12 21.5Z" fill="currentColor" opacity=".85"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v4.5h16V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 15v4.5h16V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="#0d1015"/></symbol>
+</svg>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
