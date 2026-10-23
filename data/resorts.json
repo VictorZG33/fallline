@@ -1,0 +1,1146 @@
+[
+ {
+  "slug": "stowe",
+  "group": "ne",
+  "name": {
+   "en": "Stowe",
+   "zh": "斯托"
+  },
+  "bbox": [
+   -72.8336,
+   44.4942,
+   -72.746,
+   44.5654
+  ],
+  "center": [
+   -72.7898,
+   44.5298
+  ],
+  "bearing": 290,
+  "convention": "north_america",
+  "runs": 241,
+  "lifts": 13
+ },
+ {
+  "slug": "smugglers-notch",
+  "group": "ne",
+  "name": {
+   "en": "Smugglers' Notch",
+   "zh": "走私者峡谷"
+  },
+  "bbox": [
+   -72.8057,
+   44.5432,
+   -72.7344,
+   44.6032
+  ],
+  "center": [
+   -72.77,
+   44.5732
+  ],
+  "bearing": 138,
+  "convention": "north_america",
+  "runs": 133,
+  "lifts": 10
+ },
+ {
+  "slug": "jay-peak",
+  "group": "ne",
+  "name": {
+   "en": "Jay Peak",
+   "zh": "杰伊峰"
+  },
+  "bbox": [
+   -72.5516,
+   44.9055,
+   -72.4711,
+   44.9661
+  ],
+  "center": [
+   -72.5114,
+   44.9358
+  ],
+  "bearing": 234,
+  "convention": "north_america",
+  "runs": 127,
+  "lifts": 9
+ },
+ {
+  "slug": "sugarbush",
+  "group": "ne",
+  "name": {
+   "en": "Sugarbush",
+   "zh": "糖丛"
+  },
+  "bbox": [
+   -72.9489,
+   44.1122,
+   -72.8681,
+   44.1932
+  ],
+  "center": [
+   -72.9085,
+   44.1527
+  ],
+  "bearing": 244,
+  "convention": "north_america",
+  "runs": 151,
+  "lifts": 18
+ },
+ {
+  "slug": "mad-river-glen",
+  "group": "ne",
+  "name": {
+   "en": "Mad River Glen",
+   "zh": "疯河谷"
+  },
+  "bbox": [
+   -72.954,
+   44.1752,
+   -72.8951,
+   44.2199
+  ],
+  "center": [
+   -72.9245,
+   44.1975
+  ],
+  "bearing": 258,
+  "convention": "north_america",
+  "runs": 87,
+  "lifts": 9
+ },
+ {
+  "slug": "killington",
+  "group": "ne",
+  "name": {
+   "en": "Killington & Pico",
+   "zh": "基灵顿"
+  },
+  "bbox": [
+   -72.8681,
+   43.5775,
+   -72.7368,
+   43.6781
+  ],
+  "center": [
+   -72.8025,
+   43.6278
+  ],
+  "bearing": 233,
+  "convention": "north_america",
+  "runs": 305,
+  "lifts": 29
+ },
+ {
+  "slug": "okemo",
+  "group": "ne",
+  "name": {
+   "en": "Okemo",
+   "zh": "奥克莫"
+  },
+  "bbox": [
+   -72.7775,
+   43.3741,
+   -72.6918,
+   43.4409
+  ],
+  "center": [
+   -72.7347,
+   43.4075
+  ],
+  "bearing": 282,
+  "convention": "north_america",
+  "runs": 140,
+  "lifts": 21
+ },
+ {
+  "slug": "stratton",
+  "group": "ne",
+  "name": {
+   "en": "Stratton",
+   "zh": "斯特拉顿"
+  },
+  "bbox": [
+   -72.9442,
+   43.0743,
+   -72.8589,
+   43.1288
+  ],
+  "center": [
+   -72.9015,
+   43.1015
+  ],
+  "bearing": 227,
+  "convention": "north_america",
+  "runs": 143,
+  "lifts": 17
+ },
+ {
+  "slug": "mount-snow",
+  "group": "ne",
+  "name": {
+   "en": "Mount Snow",
+   "zh": "雪山"
+  },
+  "bbox": [
+   -72.9439,
+   42.9362,
+   -72.8701,
+   42.9863
+  ],
+  "center": [
+   -72.907,
+   42.9613
+  ],
+  "bearing": 248,
+  "convention": "north_america",
+  "runs": 129,
+  "lifts": 20
+ },
+ {
+  "slug": "sugarloaf",
+  "group": "ne",
+  "name": {
+   "en": "Sugarloaf",
+   "zh": "糖面包山"
+  },
+  "bbox": [
+   -70.3549,
+   45.0172,
+   -70.2435,
+   45.0984
+  ],
+  "center": [
+   -70.2992,
+   45.0578
+  ],
+  "bearing": 187,
+  "convention": "north_america",
+  "runs": 224,
+  "lifts": 15
+ },
+ {
+  "slug": "sunday-river",
+  "group": "ne",
+  "name": {
+   "en": "Sunday River",
+   "zh": "星期日河"
+  },
+  "bbox": [
+   -70.8968,
+   44.4612,
+   -70.859,
+   44.4882
+  ],
+  "center": [
+   -70.8779,
+   44.4747
+  ],
+  "bearing": 223,
+  "convention": "north_america",
+  "runs": 100,
+  "lifts": 14
+ },
+ {
+  "slug": "cannon",
+  "group": "ne",
+  "name": {
+   "en": "Cannon",
+   "zh": "加农山"
+  },
+  "bbox": [
+   -71.7347,
+   44.1438,
+   -71.6668,
+   44.1939
+  ],
+  "center": [
+   -71.7007,
+   44.1689
+  ],
+  "bearing": 177,
+  "convention": "north_america",
+  "runs": 132,
+  "lifts": 9
+ },
+ {
+  "slug": "loon",
+  "group": "ne",
+  "name": {
+   "en": "Loon",
+   "zh": "潜鸟山"
+  },
+  "bbox": [
+   -71.682,
+   44.0198,
+   -71.5973,
+   44.0703
+  ],
+  "center": [
+   -71.6396,
+   44.045
+  ],
+  "bearing": 163,
+  "convention": "north_america",
+  "runs": 106,
+  "lifts": 13
+ },
+ {
+  "slug": "whiteface",
+  "group": "ne",
+  "name": {
+   "en": "Whiteface",
+   "zh": "白面山"
+  },
+  "bbox": [
+   -73.9339,
+   44.3326,
+   -73.8248,
+   44.417
+  ],
+  "center": [
+   -73.8794,
+   44.3748
+  ],
+  "bearing": 286,
+  "convention": "north_america",
+  "runs": 97,
+  "lifts": 11
+ },
+ {
+  "slug": "gore",
+  "group": "ne",
+  "name": {
+   "en": "Gore",
+   "zh": "戈尔山"
+  },
+  "bbox": [
+   -74.0699,
+   43.6506,
+   -73.968,
+   43.7148
+  ],
+  "center": [
+   -74.0189,
+   43.6827
+  ],
+  "bearing": 268,
+  "convention": "north_america",
+  "runs": 126,
+  "lifts": 14
+ },
+ {
+  "slug": "hunter",
+  "group": "ne",
+  "name": {
+   "en": "Hunter",
+   "zh": "亨特山"
+  },
+  "bbox": [
+   -74.2622,
+   42.1817,
+   -74.188,
+   42.225
+  ],
+  "center": [
+   -74.2251,
+   42.2033
+  ],
+  "bearing": 214,
+  "convention": "north_america",
+  "runs": 78,
+  "lifts": 10
+ },
+ {
+  "slug": "jiminy-peak",
+  "group": "ne",
+  "name": {
+   "en": "Jiminy Peak",
+   "zh": "吉米尼峰"
+  },
+  "bbox": [
+   -73.318,
+   42.5273,
+   -73.2537,
+   42.5703
+  ],
+  "center": [
+   -73.2858,
+   42.5488
+  ],
+  "bearing": 165,
+  "convention": "north_america",
+  "runs": 44,
+  "lifts": 8
+ },
+ {
+  "slug": "mohawk",
+  "group": "ne",
+  "name": {
+   "en": "Mohawk Mountain",
+   "zh": "莫霍克山"
+  },
+  "bbox": [
+   -73.3384,
+   41.8169,
+   -73.2838,
+   41.8545
+  ],
+  "center": [
+   -73.3111,
+   41.8357
+  ],
+  "bearing": 134,
+  "convention": "north_america",
+  "runs": 26,
+  "lifts": 7
+ },
+ {
+  "slug": "tremblant",
+  "group": "ne",
+  "name": {
+   "en": "Tremblant",
+   "zh": "翠湖"
+  },
+  "bbox": [
+   -74.612,
+   46.1491,
+   -74.5005,
+   46.2656
+  ],
+  "center": [
+   -74.5562,
+   46.2073
+  ],
+  "bearing": 45,
+  "convention": "north_america",
+  "runs": 346,
+  "lifts": 16
+ },
+ {
+  "slug": "jackson-hole",
+  "group": "west",
+  "name": {
+   "en": "Jackson Hole",
+   "zh": "杰克逊霍尔"
+  },
+  "bbox": [
+   -110.8959,
+   43.566,
+   -110.8035,
+   43.6255
+  ],
+  "center": [
+   -110.8497,
+   43.5958
+  ],
+  "bearing": 311,
+  "convention": "north_america",
+  "runs": 231,
+  "lifts": 17
+ },
+ {
+  "slug": "big-sky",
+  "group": "west",
+  "name": {
+   "en": "Big Sky",
+   "zh": "大天空"
+  },
+  "bbox": [
+   -111.4832,
+   45.2335,
+   -111.3383,
+   45.3283
+  ],
+  "center": [
+   -111.4107,
+   45.2809
+  ],
+  "bearing": 246,
+  "convention": "north_america",
+  "runs": 615,
+  "lifts": 55
+ },
+ {
+  "slug": "alta-snowbird",
+  "group": "west",
+  "name": {
+   "en": "Alta & Snowbird",
+   "zh": "阿尔塔 / 雪鸟"
+  },
+  "bbox": [
+   -111.6982,
+   40.5345,
+   -111.5783,
+   40.6159
+  ],
+  "center": [
+   -111.6383,
+   40.5752
+  ],
+  "bearing": 148,
+  "convention": "north_america",
+  "runs": 514,
+  "lifts": 34
+ },
+ {
+  "slug": "park-city",
+  "group": "west",
+  "name": {
+   "en": "Park City",
+   "zh": "帕克城"
+  },
+  "bbox": [
+   -111.6179,
+   40.5953,
+   -111.4805,
+   40.7131
+  ],
+  "center": [
+   -111.5492,
+   40.6542
+  ],
+  "bearing": 225,
+  "convention": "north_america",
+  "runs": 858,
+  "lifts": 79
+ },
+ {
+  "slug": "palisades-tahoe",
+  "group": "west",
+  "name": {
+   "en": "Palisades Tahoe",
+   "zh": "帕利塞兹太浩"
+  },
+  "bbox": [
+   -120.3045,
+   39.1204,
+   -120.1996,
+   39.22
+  ],
+  "center": [
+   -120.252,
+   39.1702
+  ],
+  "bearing": 223,
+  "convention": "north_america",
+  "runs": 286,
+  "lifts": 44
+ },
+ {
+  "slug": "mammoth",
+  "group": "west",
+  "name": {
+   "en": "Mammoth",
+   "zh": "猛犸山"
+  },
+  "bbox": [
+   -119.0738,
+   37.61,
+   -118.9681,
+   37.6687
+  ],
+  "center": [
+   -119.0209,
+   37.6393
+  ],
+  "bearing": 216,
+  "convention": "north_america",
+  "runs": 200,
+  "lifts": 28
+ },
+ {
+  "slug": "aspen",
+  "group": "west",
+  "name": {
+   "en": "Aspen Snowmass",
+   "zh": "阿斯彭"
+  },
+  "bbox": [
+   -107.0024,
+   39.1125,
+   -106.7902,
+   39.2264
+  ],
+  "center": [
+   -106.8963,
+   39.1695
+  ],
+  "bearing": 195,
+  "convention": "north_america",
+  "runs": 587,
+  "lifts": 39
+ },
+ {
+  "slug": "vail",
+  "group": "west",
+  "name": {
+   "en": "Vail",
+   "zh": "韦尔"
+  },
+  "bbox": [
+   -106.4191,
+   39.5439,
+   -106.2752,
+   39.6567
+  ],
+  "center": [
+   -106.3472,
+   39.6003
+  ],
+  "bearing": 143,
+  "convention": "north_america",
+  "runs": 330,
+  "lifts": 32
+ },
+ {
+  "slug": "telluride",
+  "group": "west",
+  "name": {
+   "en": "Telluride",
+   "zh": "特柳赖德"
+  },
+  "bbox": [
+   -107.8829,
+   37.8693,
+   -107.7965,
+   37.9543
+  ],
+  "center": [
+   -107.8397,
+   37.9118
+  ],
+  "bearing": 172,
+  "convention": "north_america",
+  "runs": 290,
+  "lifts": 20
+ },
+ {
+  "slug": "whistler",
+  "group": "west",
+  "name": {
+   "en": "Whistler Blackcomb",
+   "zh": "惠斯勒"
+  },
+  "bbox": [
+   -123.0145,
+   50.0257,
+   -122.8377,
+   50.1457
+  ],
+  "center": [
+   -122.9261,
+   50.0857
+  ],
+  "bearing": 144,
+  "convention": "north_america",
+  "runs": 928,
+  "lifts": 36
+ },
+ {
+  "slug": "revelstoke",
+  "group": "west",
+  "name": {
+   "en": "Revelstoke",
+   "zh": "雷夫尔斯托克"
+  },
+  "bbox": [
+   -118.1874,
+   50.9347,
+   -118.0677,
+   51.003
+  ],
+  "center": [
+   -118.1275,
+   50.9688
+  ],
+  "bearing": 97,
+  "convention": "north_america",
+  "runs": 140,
+  "lifts": 7
+ },
+ {
+  "slug": "chamonix",
+  "group": "alps",
+  "name": {
+   "en": "Chamonix",
+   "zh": "霞慕尼"
+  },
+  "bbox": [
+   6.7305,
+   45.8324,
+   6.9871,
+   46.0329
+  ],
+  "center": [
+   6.8588,
+   45.9327
+  ],
+  "bearing": 183,
+  "convention": "europe",
+  "runs": 480,
+  "lifts": 87
+ },
+ {
+  "slug": "zermatt",
+  "group": "alps",
+  "name": {
+   "en": "Zermatt",
+   "zh": "采尔马特"
+  },
+  "bbox": [
+   7.6037,
+   45.8696,
+   7.8442,
+   46.052
+  ],
+  "center": [
+   7.7239,
+   45.9608
+  ],
+  "bearing": 127,
+  "convention": "europe",
+  "runs": 426,
+  "lifts": 66
+ },
+ {
+  "slug": "verbier",
+  "group": "alps",
+  "name": {
+   "en": "Verbier",
+   "zh": "韦尔比耶"
+  },
+  "bbox": [
+   7.1599,
+   46.0273,
+   7.4196,
+   46.2139
+  ],
+  "center": [
+   7.2897,
+   46.1206
+  ],
+  "bearing": 172,
+  "convention": "europe",
+  "runs": 432,
+  "lifts": 80
+ },
+ {
+  "slug": "st-anton",
+  "group": "alps",
+  "name": {
+   "en": "St. Anton",
+   "zh": "圣安东"
+  },
+  "bbox": [
+   10.0713,
+   47.082,
+   10.3059,
+   47.2825
+  ],
+  "center": [
+   10.1886,
+   47.1822
+  ],
+  "bearing": 331,
+  "convention": "europe",
+  "runs": 1002,
+  "lifts": 94
+ },
+ {
+  "slug": "val-disere",
+  "group": "alps",
+  "name": {
+   "en": "Val d'Isère & Tignes",
+   "zh": "瓦勒迪泽尔"
+  },
+  "bbox": [
+   6.8413,
+   45.3937,
+   7.0908,
+   45.5208
+  ],
+  "center": [
+   6.966,
+   45.4572
+  ],
+  "bearing": 196,
+  "convention": "europe",
+  "runs": 564,
+  "lifts": 84
+ },
+ {
+  "slug": "trois-vallees",
+  "group": "alps",
+  "name": {
+   "en": "Les 3 Vallées",
+   "zh": "三峡谷"
+  },
+  "bbox": [
+   6.5563,
+   45.2503,
+   6.6405,
+   45.4155
+  ],
+  "center": [
+   6.5984,
+   45.3329
+  ],
+  "bearing": 160,
+  "convention": "europe",
+  "runs": 971,
+  "lifts": 105
+ },
+ {
+  "slug": "la-grave",
+  "group": "alps",
+  "name": {
+   "en": "La Grave",
+   "zh": "拉格拉夫"
+  },
+  "bbox": [
+   6.2282,
+   44.9809,
+   6.3305,
+   45.0581
+  ],
+  "center": [
+   6.2794,
+   45.0195
+  ],
+  "bearing": 221,
+  "convention": "europe",
+  "runs": 26,
+  "lifts": 6
+ },
+ {
+  "slug": "engelberg",
+  "group": "alps",
+  "name": {
+   "en": "Engelberg",
+   "zh": "英格堡"
+  },
+  "bbox": [
+   8.3807,
+   46.78,
+   8.4257,
+   46.845
+  ],
+  "center": [
+   8.4032,
+   46.8125
+  ],
+  "bearing": 147,
+  "convention": "europe",
+  "runs": 107,
+  "lifts": 30
+ },
+ {
+  "slug": "cortina",
+  "group": "alps",
+  "name": {
+   "en": "Cortina d'Ampezzo",
+   "zh": "科尔蒂纳"
+  },
+  "bbox": [
+   11.9461,
+   46.4432,
+   12.4429,
+   46.6118
+  ],
+  "center": [
+   12.1945,
+   46.5275
+  ],
+  "bearing": 253,
+  "convention": "europe",
+  "runs": 304,
+  "lifts": 38
+ },
+ {
+  "slug": "niseko",
+  "group": "asia",
+  "name": {
+   "en": "Niseko United",
+   "zh": "二世古"
+  },
+  "bbox": [
+   140.6092,
+   42.824,
+   140.7224,
+   42.9071
+  ],
+  "center": [
+   140.6658,
+   42.8655
+  ],
+  "bearing": 317,
+  "convention": "japan",
+  "runs": 211,
+  "lifts": 32
+ },
+ {
+  "slug": "rusutsu",
+  "group": "asia",
+  "name": {
+   "en": "Rusutsu",
+   "zh": "留寿都"
+  },
+  "bbox": [
+   140.8671,
+   42.6894,
+   140.9633,
+   42.7728
+  ],
+  "center": [
+   140.9152,
+   42.7311
+  ],
+  "bearing": 205,
+  "convention": "japan",
+  "runs": 38,
+  "lifts": 18
+ },
+ {
+  "slug": "furano",
+  "group": "asia",
+  "name": {
+   "en": "Furano",
+   "zh": "富良野"
+  },
+  "bbox": [
+   142.2997,
+   43.3067,
+   142.379,
+   43.3586
+  ],
+  "center": [
+   142.3394,
+   43.3327
+  ],
+  "bearing": 262,
+  "convention": "japan",
+  "runs": 64,
+  "lifts": 10
+ },
+ {
+  "slug": "hakuba-happo",
+  "group": "asia",
+  "name": {
+   "en": "Hakuba Happo-one",
+   "zh": "白马八方尾根"
+  },
+  "bbox": [
+   137.7816,
+   36.6801,
+   137.8563,
+   36.7272
+  ],
+  "center": [
+   137.819,
+   36.7037
+  ],
+  "bearing": 251,
+  "convention": "japan",
+  "runs": 71,
+  "lifts": 29
+ },
+ {
+  "slug": "yongpyong",
+  "group": "asia",
+  "name": {
+   "en": "Yongpyong",
+   "zh": "龙平"
+  },
+  "bbox": [
+   128.6431,
+   37.5963,
+   128.7111,
+   37.6581
+  ],
+  "center": [
+   128.6771,
+   37.6272
+  ],
+  "bearing": 184,
+  "convention": "north_america",
+  "runs": 43,
+  "lifts": 15
+ },
+ {
+  "slug": "chongli",
+  "group": "china",
+  "name": {
+   "en": "Chongli (Thaiwoo, Genting, Wanlong, Fulong)",
+   "zh": "崇礼（太舞、云顶、万龙、富龙）"
+  },
+  "bbox": [
+   115.278,
+   40.8128,
+   115.4785,
+   41.0241
+  ],
+  "center": [
+   115.3782,
+   40.9185
+  ],
+  "bearing": 177,
+  "convention": "north_america",
+  "runs": 195,
+  "lifts": 57
+ },
+ {
+  "slug": "beidahu",
+  "group": "china",
+  "name": {
+   "en": "Beidahu",
+   "zh": "北大湖"
+  },
+  "bbox": [
+   126.5606,
+   43.3839,
+   126.6751,
+   43.4412
+  ],
+  "center": [
+   126.6179,
+   43.4126
+  ],
+  "bearing": 159,
+  "convention": "north_america",
+  "runs": 85,
+  "lifts": 19
+ },
+ {
+  "slug": "songhuahu",
+  "group": "china",
+  "name": {
+   "en": "Songhuahu",
+   "zh": "松花湖"
+  },
+  "bbox": [
+   126.5737,
+   43.6455,
+   126.6541,
+   43.7016
+  ],
+  "center": [
+   126.6139,
+   43.6735
+  ],
+  "bearing": 196,
+  "convention": "north_america",
+  "runs": 52,
+  "lifts": 15
+ },
+ {
+  "slug": "changbaishan",
+  "group": "china",
+  "name": {
+   "en": "Changbaishan",
+   "zh": "长白山"
+  },
+  "bbox": [
+   127.4747,
+   41.9436,
+   127.5392,
+   42.1146
+  ],
+  "center": [
+   127.5069,
+   42.0291
+  ],
+  "bearing": 231,
+  "convention": "north_america",
+  "runs": 37,
+  "lifts": 13
+ },
+ {
+  "slug": "yabuli",
+  "group": "china",
+  "name": {
+   "en": "Yabuli",
+   "zh": "亚布力"
+  },
+  "bbox": [
+   128.3999,
+   44.7243,
+   128.4744,
+   44.7956
+  ],
+  "center": [
+   128.4372,
+   44.7599
+  ],
+  "bearing": 240,
+  "convention": "north_america",
+  "runs": 27,
+  "lifts": 17
+ },
+ {
+  "slug": "jiangjunshan",
+  "group": "china",
+  "name": {
+   "en": "Jiangjunshan",
+   "zh": "将军山"
+  },
+  "bbox": [
+   88.1157,
+   47.7905,
+   88.1949,
+   47.8579
+  ],
+  "center": [
+   88.1553,
+   47.8242
+  ],
+  "bearing": 102,
+  "convention": "north_america",
+  "runs": 28,
+  "lifts": 15
+ },
+ {
+  "slug": "koktokay",
+  "group": "china",
+  "name": {
+   "en": "Koktokay",
+   "zh": "可可托海"
+  },
+  "bbox": [
+   89.9753,
+   47.132,
+   90.122,
+   47.2233
+  ],
+  "center": [
+   90.0486,
+   47.1777
+  ],
+  "bearing": 96,
+  "convention": "north_america",
+  "runs": 32,
+  "lifts": 9
+ },
+ {
+  "slug": "jikepulin",
+  "group": "china",
+  "name": {
+   "en": "Jikepulin (Hemu)",
+   "zh": "吉克普林（禾木）"
+  },
+  "bbox": [
+   87.4963,
+   48.5683,
+   87.6016,
+   48.6453
+  ],
+  "center": [
+   87.549,
+   48.6068
+  ],
+  "bearing": 11,
+  "convention": "north_america",
+  "runs": 89,
+  "lifts": 10
+ }
+]
