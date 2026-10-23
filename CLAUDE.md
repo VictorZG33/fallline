@@ -28,7 +28,13 @@ sets the view, e.g. `#13.4/44.53/-72.79/290/62` for Stowe.
 ## Terrain engine
 
 `js/terrain.js` is the core: Mapterhorn terrarium tiles (512 px, webp, max zoom
-varies by region: 404 above the finest data, so `bestZoom` walks down). Slope uses
-Horn's method on native-resolution heights with a baseline of about 12 m, then
-interpolates the gradient to the output tile. Keep it free of DOM APIs; it runs
-in `terrain-worker.js` and, as a fallback, on the main thread.
+varies by region: 404 above the finest data, so `bestZoom` walks down). Shading
+uses Horn's method over a baseline (slope ~12 m, aspect ~40 m plus a box blur),
+on the coarsest DEM zoom that still resolves that baseline, then interpolates the
+gradient to the output tile. Keep it free of DOM APIs; it runs in
+`terrain-worker.js` and, as a fallback, on the main thread.
+
+Run stats (`analyze` in `js/info.js`) are all measured along the line: average
+pitch is drop over length, steepest is the worst 30 m, and the profile is coloured
+by that same pitch. `trail()` in `js/pistes.js` joins same-named OSM sections that
+continue from each other, so a tap gives the whole signed run.

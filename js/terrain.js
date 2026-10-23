@@ -141,17 +141,23 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     };
   }
 
-  // Elevation gradient (dz/dx east, dz/dy south) at native DEM resolution over
-  // the pixels a size x size tile at (z, x, y) needs, from the finest zoom
-  // available. Where that zoom is coarser than z, the shader interpolates the
-  // gradient rather than the heights, so slopes stay smooth instead of faceted.
-  async function gradients(z, x, y, size) {
+  // Elevation gradient (dz/dx east, dz/dy south) over the pixels a size x size
+  // tile at (z, x, y) needs, measured across `baseline` metres. It uses the
+  // finest DEM zoom available but no finer than the baseline calls for: coarser
+  // zooms are averages of the fine data, so that alone removes most noise.
+  // `blur` passes of a 3x3 box then average neighbouring gradient vectors.
+  // Where the DEM is coarser than z, the shader interpolates the gradient
+  // rather than the heights, so the result stays smooth instead of faceted.
+  async function gradients(z, x, y, size, baseline, blur = 0) {
     const PAD = 8;
-    const zd = await bestZoom(z, x, y);
+    let zd = await bestZoom(z, x, y);
     if (zd < 0) return null;
+    const tileLat = yToLat((y + 0.5) * size, z + Math.log2(size / DEM_SIZE));
+    while (zd > 0 && metersPerPixel(tileLat, zd) < baseline / 6) zd--;
     const s = 2 ** (z - zd) * (size / DEM_SIZE);
-    const nx0 = Math.floor((x * size + 0.5) / s - 0.5), nx1 = Math.floor(((x + 1) * size - 0.5) / s - 0.5) + 1;
-    const ny0 = Math.floor((y * size + 0.5) / s - 0.5), ny1 = Math.floor(((y + 1) * size - 0.5) / s - 0.5) + 1;
+    const m = blur; // extra margin so blurred edges match the neighbouring tiles
+    const nx0 = Math.floor((x * size + 0.5) / s - 0.5) - m, nx1 = Math.floor(((x + 1) * size - 0.5) / s - 0.5) + 1 + m;
+    const ny0 = Math.floor((y * size + 0.5) / s - 0.5) - m, ny1 = Math.floor(((y + 1) * size - 0.5) / s - 0.5) + 1 + m;
     const W = nx1 - nx0 + 1, H = ny1 - ny0 + 1;
     const sample = await sampler(zd, nx0 - PAD, ny0 - PAD, nx1 + PAD, ny1 + PAD);
     if (!sample) return null;
@@ -160,12 +166,10 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     for (let j = 0; j < H + 2 * PAD; j++) {
       for (let i = 0; i < pw; i++) h[j * pw + i] = sample(nx0 - PAD + i + 0.5, ny0 - PAD + j + 0.5);
     }
-    const gx = new Float32Array(W * H), gy = new Float32Array(W * H);
+    let gx = new Float32Array(W * H), gy = new Float32Array(W * H);
     for (let j = 0; j < H; j++) {
       const mpp = metersPerPixel(yToLat(ny0 + j + 0.5, zd), zd);
-      // Measure slope over about 12 m, so 1 m data doesn't turn every rock into
-      // a cliff and Mapterhorn's height steps (1/8 m at z14) don't stripe the bands.
-      const k = Math.max(1, Math.min(PAD, Math.round(6 / mpp)));
+      const k = Math.max(1, Math.min(PAD, Math.round(baseline / 2 / mpp)));
       const norm = 1 / (8 * k * mpp);
       for (let i = 0; i < W; i++) {
         const c = (j + PAD) * pw + (i + PAD);
@@ -177,13 +181,29 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
         gy[j * W + i] = (g + 2 * hh + ii - (a + 2 * b + cc)) * norm;
       }
     }
+    for (let pass = 0; pass < blur; pass++) {
+      gx = box3(gx, W, H);
+      gy = box3(gy, W, H);
+    }
+    if (m) {
+      const cw = W - 2 * m, ch = H - 2 * m;
+      const cx = new Float32Array(cw * ch), cy = new Float32Array(cw * ch);
+      for (let j = 0; j < ch; j++) {
+        cx.set(gx.subarray((j + m) * W + m, (j + m) * W + m + cw), j * cw);
+        cy.set(gy.subarray((j + m) * W + m, (j + m) * W + m + cw), j * cw);
+      }
+      return { s, nx0: nx0 + m, ny0: ny0 + m, W: cw, H: ch, gx: cx, gy: cy };
+    }
     return { s, nx0, ny0, W, H, gx, gy };
   }
 
   // Slope or aspect tile as RGBA. `mask` is a bit field of visible bands/sectors.
   async function shadeTile(mode, z, x, y, mask, size = DEM_SIZE) {
     const out = new Uint8ClampedArray(size * size * 4);
-    const gr = await gradients(z, x, y, size);
+    // Slope over about 12 m keeps short steep pitches; Mapterhorn's height
+    // steps (1/8 m at z14) would stripe the bands any finer. Aspect only needs
+    // to say which way a slope faces, so it is read over ~40 m and smoothed.
+    const gr = mode === 'slope' ? await gradients(z, x, y, size, 12) : await gradients(z, x, y, size, 40, 2);
     if (!gr) return out;
     const { s, nx0, ny0, W, H, gx, gy } = gr;
     for (let j = 0; j < size; j++) {
@@ -342,6 +362,19 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
   }
 
   return { shadeTile, profile, point, area };
+}
+
+// One pass of a 3x3 box filter, edges clamped.
+function box3(src, W, H) {
+  const out = new Float32Array(W * H);
+  for (let j = 0; j < H; j++) {
+    const j0 = j > 0 ? j - 1 : 0, j1 = j < H - 1 ? j + 1 : H - 1;
+    for (let i = 0; i < W; i++) {
+      const i0 = i > 0 ? i - 1 : 0, i1 = i < W - 1 ? i + 1 : W - 1;
+      out[j * W + i] = (src[j0 * W + i0] + src[j0 * W + i] + src[j0 * W + i1] + src[j * W + i0] + src[j * W + i] + src[j * W + i1] + src[j1 * W + i0] + src[j1 * W + i] + src[j1 * W + i1]) / 9;
+    }
+  }
+  return out;
 }
 
 const lerp2 = (a, b, c, d, fx, fy) => a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;

@@ -20,10 +20,10 @@ FATMAP 被 Strava 收购后下线了。滚落线把它最好用的部分做回�
 - **Runs and lifts** coloured by local convention (green / blue / black diamond
   in North America and China, blue / red / black in Europe, and so on). 52
   resorts ship as offline packs; everywhere else loads live from OpenStreetMap.
-- **Tap a run** for its length, vertical, average and steepest pitch, the
-  steepest terrain under it, and an elevation profile coloured by slope angle.
-  Scrub the profile to see that point on the map. "Fly down" flies the camera
-  down the run.
+- **Tap a run** for the whole trail (OpenStreetMap's sections joined up): its
+  length, vertical, average pitch, steepest 30 m, and an elevation profile
+  coloured by the pitch along the run. Scrub the profile to see that point on
+  the map. "Fly down" flies the camera down the run.
 - **Tap anywhere** for elevation, slope angle and aspect at that spot.
 - **GPX**: import tracks from a watch or phone (stats, profile, replay), export
   any run as GPX.
@@ -42,7 +42,7 @@ No build step: plain ES modules served as static files.
 | --- | --- |
 | Map engine | [MapLibre GL JS](https://maplibre.org) 6.13, vendored in `vendor/` |
 | Elevation | [Mapterhorn](https://mapterhorn.com) terrain tiles (1–10 m in the US, the Alps, Japan, Scandinavia; 30 m elsewhere) |
-| Slope and aspect | `js/terrain.js`, in a Web Worker: decodes the elevation tiles, takes the gradient over about 12 m (Horn's method), and colours each pixel. Served to MapLibre through the `fl-shade://` protocol |
+| Slope and aspect | `js/terrain.js`, in a Web Worker: decodes the elevation tiles, takes the gradient (Horn's method) over about 12 m for slope and 40 m, smoothed, for aspect, and colours each pixel. Served to MapLibre through the `fl-shade://` protocol |
 | Runs and lifts | [OpenSkiData](https://openskidata.org) packs in `data/packs/` (built by `tools/build-data.mjs`), else live from the [Overpass API](https://overpass-api.de) |
 | Contours | [maplibre-contour](https://github.com/onthegomap/maplibre-contour), from the same elevation tiles |
 | Imagery | Esri World Imagery; OpenTopoMap; [OpenFreeMap](https://openfreemap.org) vector tiles for the winter map and labels |
