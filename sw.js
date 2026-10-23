@@ -1,6 +1,6 @@
 // Service worker: keeps the app shell, resort packs and every map tile it has
 // seen, so the map keeps working where the mountain has no signal.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `fl-shell-${VERSION}`;
 const DATA = 'fl-data';
 const TILES = 'fl-tiles';
@@ -23,7 +23,8 @@ const TILE_HOSTS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache, so a deploy is picked up whole.
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

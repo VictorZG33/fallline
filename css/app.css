@@ -280,7 +280,16 @@ progress { width: 100%; height: 6px; margin-top: 10px; accent-color: var(--accen
 .stat dt { font-size: 12px; color: var(--ink-2); }
 .stat dd { font-family: var(--display); font-weight: 750; font-size: 19px; font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
 .chip { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset; }
+.profile-wrap { position: relative; }
 .profile { display: block; width: 100%; height: 128px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); touch-action: none; cursor: crosshair; }
+.ax {
+  position: absolute; left: 6px; padding: 0 5px; border-radius: 5px;
+  background: rgba(13, 16, 21, 0.6); font-size: 11px; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.ax-top { top: 5px; }
+.ax-bottom { bottom: 5px; }
+.profile-note { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
 .profile-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .profile-read { display: flex; align-items: center; gap: 5px; color: var(--ink); font-weight: 600; }
 .cursor-dot { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 4px solid #ff2d8a; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }

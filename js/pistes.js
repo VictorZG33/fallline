@@ -1,6 +1,7 @@
 // Runs and lifts. Bundled resort packs (from OpenSkiData) load when the view
 // reaches them; everywhere else is fetched live from OpenStreetMap through the
 // Overpass API, one z11 tile at a time.
+import { haversine } from './terrain.js';
 
 const COLORS = {
   green: '#1f9d4c', blue: '#1d6ae5', red: '#de2b2b', black: '#0d0f12',
@@ -226,6 +227,49 @@ export function createPisteStore(map, { resorts, nearestConvention, ready, onSta
     }
   }
 
+  // OpenStreetMap splits a trail wherever it branches or its tags change, so
+  // one signed run is often several features. Join the tapped one with
+  // same-named runs that continue from either end, stopping at forks.
+  function trail(fid) {
+    const f = features.get(fid);
+    const p = f?.properties;
+    if (!f || f.geometry.type !== 'LineString' || !p.name) return f;
+    const others = [];
+    for (const g of features.values()) {
+      const q = g.properties;
+      if (g !== f && q.kind === 'run' && q.name === p.name && (q.use || 'downhill') === (p.use || 'downhill') && g.geometry.type === 'LineString') others.push(g);
+    }
+    const near = (a, b) => haversine(a, b) < 30;
+    let line = f.geometry.coordinates.slice();
+    const parts = [f];
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const atEnd of [true, false]) {
+        const tip = atEnd ? line[line.length - 1] : line[0];
+        const next = others.filter((g) => !parts.includes(g) && (near(g.geometry.coordinates[0], tip) || near(g.geometry.coordinates.at(-1), tip)));
+        if (next.length !== 1) continue;
+        let c = next[0].geometry.coordinates;
+        if (atEnd) {
+          if (!near(c[0], tip)) c = c.slice().reverse();
+          line = line.concat(c.slice(1));
+        } else {
+          if (!near(c.at(-1), tip)) c = c.slice().reverse();
+          line = c.slice(0, -1).concat(line);
+        }
+        parts.push(next[0]);
+        grew = true;
+      }
+    }
+    if (parts.length === 1) return f;
+    // The hardest section sets the badge; the trail map would show the same.
+    const hardest = parts.reduce((a, b) => ((b.properties.rank || 0) > (a.properties.rank || 0) ? b : a));
+    return {
+      type: 'Feature',
+      properties: { ...p, difficulty: hardest.properties.difficulty, color: hardest.properties.color, segments: parts.length },
+      geometry: { type: 'LineString', coordinates: line },
+    };
+  }
+
   map.on('moveend', update);
-  return { update, loadPack, get: (fid) => features.get(fid) };
+  return { update, loadPack, get: (fid) => features.get(fid), trail };
 }

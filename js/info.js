@@ -14,36 +14,48 @@ const FLAT = '#5d6b7e';
 
 // ---- Profile maths ----------------------------------------------------------------
 
-export function analyze({ dist, ele, slope }) {
-  const idx = ele.map((e, i) => (e === null ? -1 : i)).filter((i) => i >= 0);
-  if (idx.length < 2) return null;
-  const eles = idx.map((i) => ele[i]);
-  const top = Math.max(...eles), bottom = Math.min(...eles);
+const PITCH_WINDOW = 30; // metres of run the pitch is measured over
+const deg = (rise, run) => (Math.atan(Math.abs(rise) / run) * 180) / Math.PI;
+
+// Stats for a DEM profile. Everything about steepness is measured along the
+// line itself (the pitch you ski), so the numbers and the chart agree.
+export function analyze({ dist, ele }) {
+  const dv = [], ev = [];
+  ele.forEach((e, i) => e !== null && (dv.push(dist[i]), ev.push(e)));
+  if (dv.length < 2) return null;
   const length = dist[dist.length - 1];
-  let maxPitch = 0;
-  let maxPitchAt = idx[0];
-  // Steepest 30 m along the line.
-  for (let a = 0, b = 0; a < idx.length; a++) {
-    while (b < idx.length - 1 && dist[idx[b]] - dist[idx[a]] < 30) b++;
-    const dd = dist[idx[b]] - dist[idx[a]];
-    if (dd >= 25) {
-      const p = (Math.atan(Math.abs(ele[idx[b]] - ele[idx[a]]) / dd) * 180) / Math.PI;
-      if (p > maxPitch) { maxPitch = p; maxPitchAt = idx[a]; }
-    }
-  }
-  const slopes = slope.filter((s) => s !== null);
+  const eleAt = (d) => {
+    let i = dv.findIndex((x) => x >= d);
+    if (i <= 0) return ev[i < 0 ? ev.length - 1 : 0];
+    const f = (d - dv[i - 1]) / (dv[i] - dv[i - 1] || 1);
+    return ev[i - 1] + (ev[i] - ev[i - 1]) * f;
+  };
+  // Pitch at each sample over a 30 m window centred on it (shifted to fit at the ends).
+  const w = Math.min(PITCH_WINDOW, length);
+  const pitch = dist.map((d) => {
+    if (w < 5) return null;
+    const a = Math.max(0, Math.min(length - w, d - w / 2));
+    return deg(eleAt(a + w) - eleAt(a), w);
+  });
+  const maxPitch = Math.max(0, ...pitch.filter((p) => p !== null));
+  const top = Math.max(...ev), bottom = Math.min(...ev);
   return {
     top, bottom, length, vertical: top - bottom,
-    avgPitch: length > 0 ? (Math.atan((top - bottom) / length) * 180) / Math.PI : 0,
-    maxPitch, maxPitchAt,
-    maxSlope: slopes.length ? Math.max(...slopes) : null,
-    downhill: eles[0] >= eles[eles.length - 1],
+    avgPitch: length > 0 ? deg(top - bottom, length) : 0,
+    maxPitch, pitch,
+    downhill: ev[0] >= ev[ev.length - 1],
   };
 }
 
+// The same profile run the other way.
+function reversed(p) {
+  const L = p.dist[p.dist.length - 1];
+  return { dist: p.dist.map((d) => L - d).reverse(), ele: p.ele.slice().reverse(), slope: p.slope.slice().reverse(), pts: p.pts.slice().reverse() };
+}
+
 function profileSvg(p, stats) {
-  const W = 600, H = 150, L = 4, R = 4, T = 10, B = 18;
-  const xs = (d) => L + (d / (p.dist[p.dist.length - 1] || 1)) * (W - L - R);
+  const W = 600, H = 150, T = 6, B = 6;
+  const xs = (d) => (d / (p.dist[p.dist.length - 1] || 1)) * W;
   const span = Math.max(20, stats.top - stats.bottom);
   const ys = (e) => T + (1 - (e - stats.bottom) / span) * (H - T - B);
   let fills = '';
@@ -51,17 +63,21 @@ function profileSvg(p, stats) {
   for (let i = 1; i < p.dist.length; i++) {
     const [e0, e1] = [p.ele[i - 1], p.ele[i]];
     if (e0 === null || e1 === null) continue;
-    const s = Math.max(p.slope[i - 1] ?? 0, p.slope[i] ?? 0);
-    const c = slopeColor(slopeBand(s));
+    const c = slopeColor(slopeBand(((stats.pitch[i - 1] ?? 0) + (stats.pitch[i] ?? 0)) / 2));
     const [x0, x1] = [xs(p.dist[i - 1]), xs(p.dist[i])];
-    fills += `<path d="M${x0.toFixed(1)} ${H - B}V${ys(e0).toFixed(1)}L${x1.toFixed(1)} ${ys(e1).toFixed(1)}V${H - B}Z" fill="${c ? rgb(c) : FLAT}" stroke="${c ? rgb(c) : FLAT}" stroke-width="0.6"/>`;
+    fills += `<path d="M${x0.toFixed(1)} ${H}V${ys(e0).toFixed(1)}L${x1.toFixed(1)} ${ys(e1).toFixed(1)}V${H}Z" fill="${c ? rgb(c) : FLAT}" stroke="${c ? rgb(c) : FLAT}" stroke-width="0.6"/>`;
     line += `${line ? 'L' : 'M'}${x0.toFixed(1)} ${ys(e0).toFixed(1)}L${x1.toFixed(1)} ${ys(e1).toFixed(1)}`;
   }
-  return `<svg class="profile" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(t('info.profile'))}">
-    ${fills}<path d="${line}" fill="none" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
-    <line class="profile-cursor" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/>
-  </svg>
-  <div class="profile-axis"><span>${fmt.elevation(stats.top)}</span><span class="profile-read"></span><span>${fmt.distance(stats.length)}</span></div>`;
+  return `<div class="profile-wrap">
+    <svg class="profile" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(t('info.profile'))}">
+      ${fills}<path d="${line}" fill="none" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+      <line class="profile-cursor" x1="0" x2="0" y1="0" y2="${H}" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/>
+    </svg>
+    <span class="ax ax-top">${fmt.elevation(stats.top)}</span>
+    <span class="ax ax-bottom">${fmt.elevation(stats.bottom)}</span>
+  </div>
+  <div class="profile-axis"><span>0</span><span class="profile-read"></span><span>${fmt.distance(stats.length)}</span></div>
+  <p class="profile-note">${esc(t('info.profileNote'))}</p>`;
 }
 
 // ---- Camera flight along a line ---------------------------------------------------------
@@ -168,7 +184,7 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
     return `<i class="chip" style="background:${c ? rgb(c) : 'transparent'}"></i>`;
   };
 
-  function wireProfile(p, coords) {
+  function wireProfile(p, st, coords) {
     const svg = body.querySelector('.profile');
     const read = body.querySelector('.profile-read');
     const line = body.querySelector('.profile-cursor');
@@ -191,10 +207,10 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
       const d = f * p.dist[p.dist.length - 1];
       let i = p.dist.findIndex((x) => x >= d);
       if (i < 0) i = p.dist.length - 1;
-      line.setAttribute('x1', 4 + f * 592);
-      line.setAttribute('x2', 4 + f * 592);
+      line.setAttribute('x1', f * 600);
+      line.setAttribute('x2', f * 600);
       line.setAttribute('opacity', '1');
-      read.innerHTML = `${fmt.elevation(p.ele[i])} · ${chip(p.slope[i])}${fmt.degrees(p.slope[i])}`;
+      read.innerHTML = `${fmt.distance(d)} · ${fmt.elevation(p.ele[i])} · ${chip(st.pitch[i])}${fmt.degrees(st.pitch[i])}`;
       cursor.setLngLat(coordAt(d)).addTo(map);
     };
     svg.addEventListener('pointermove', move);
@@ -245,37 +261,34 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
       return;
     }
 
-    let coords = f.geometry.coordinates;
+    const coords = f.geometry.coordinates;
     const total = coords.slice(1).reduce((s, c, i) => s + haversine(coords[i], c), 0);
     const prof = await terrain.profile(coords, Math.max(8, Math.min(30, total / 400))).catch(() => null);
     if (my !== token) return;
-    const st = prof && analyze(prof);
-    if (!st) {
+    const first = prof && analyze(prof);
+    if (!first) {
       body.innerHTML = `${head}<p class="muted">${t('info.noDem')}</p>`;
       return;
     }
     // Draw and fly it downhill.
-    let shown = prof;
-    if (!st.downhill) {
-      coords = coords.slice().reverse();
-      const L = prof.dist[prof.dist.length - 1];
-      shown = { dist: prof.dist.map((d) => L - d).reverse(), ele: prof.ele.slice().reverse(), slope: prof.slope.slice().reverse(), pts: prof.pts.slice().reverse() };
-    }
+    const shown = first.downhill ? prof : reversed(prof);
+    const st = first.downhill ? first : analyze(shown);
     body.innerHTML = `${head}
+      ${p.segments > 1 ? `<p class="muted small">${esc(t('info.segments', { n: p.segments }))}</p>` : ''}
       <dl class="stats">
         ${stat(t('info.length'), fmt.distance(st.length))}
         ${stat(t('info.vertical'), fmt.elevation(st.vertical))}
         ${stat(t('info.avgPitch'), `${chip(st.avgPitch)}${fmt.degrees(st.avgPitch)}`)}
         ${stat(t('info.maxPitch'), `${chip(st.maxPitch)}${fmt.degrees(st.maxPitch)}`)}
-        ${stat(t('info.maxSlope'), `${chip(st.maxSlope)}${fmt.degrees(st.maxSlope)}`)}
         ${stat(t('info.top'), fmt.elevation(st.top))}
+        ${stat(t('info.bottom'), fmt.elevation(st.bottom))}
       </dl>
       ${profileSvg(shown, st)}
       <div class="actions">
         <button type="button" class="btn primary" data-act="fly">${t((p.use || 'downhill') === 'downhill' ? 'info.flyDown' : 'info.flyAlong')}</button>
         <button type="button" class="btn" data-act="gpx">${t('info.gpx')}</button>
       </div>`;
-    wireProfile(shown, coords);
+    wireProfile(shown, st, shown.pts);
     body.querySelector('[data-act=fly]').onclick = () => { stopFlight?.(); stopFlight = flyAlong(map, shown.pts, shown.ele); };
     body.querySelector('[data-act=gpx]').onclick = () => download(`${title.replace(/[^\p{L}\p{N}]+/gu, '-')}.gpx`, toGpx(title, shown.pts, shown.ele));
   }
@@ -331,14 +344,14 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
         ${stat(t('info.descent'), fmt.elevation(s.descent || (st ? st.vertical : null)))}
         ${stat(t('info.ascent'), fmt.elevation(s.ascent))}
         ${stat(t('info.maxSpeed'), fmt.speed(s.maxSpeed))}
-        ${stat(t('info.maxSlope'), st ? `${chip(st.maxSlope)}${fmt.degrees(st.maxSlope)}` : '–')}
+        ${stat(t('info.maxPitch'), st ? `${chip(st.maxPitch)}${fmt.degrees(st.maxPitch)}` : '–')}
       </dl>
       ${st ? profileSvg(prof, st) : ''}
       <div class="actions">
         <button type="button" class="btn primary" data-act="fly">${t('info.flyAlong')}</button>
         <button type="button" class="btn danger" data-act="del">${t('info.delete')}</button>
       </div>`;
-    if (st) wireProfile(prof, thin);
+    if (st) wireProfile(prof, st, prof.pts);
     body.querySelector('[data-act=fly]').onclick = () => { stopFlight?.(); stopFlight = flyAlong(map, prof ? prof.pts : thin, prof?.ele); };
     body.querySelector('[data-act=del]').onclick = () => { onDeleteTrack?.(track.id); close(); };
   }

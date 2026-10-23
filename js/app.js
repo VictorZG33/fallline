@@ -206,7 +206,7 @@ map.on('click', (e) => {
     if (tr) { showInfo(); info.showTrack(tr); return; }
   }
   if (hit?.properties.fid) {
-    const f = pistes.get(hit.properties.fid);
+    const f = hit.properties.kind === 'run' ? pistes.trail(hit.properties.fid) : pistes.get(hit.properties.fid);
     if (f) { showInfo(); info.show(f); return; }
   }
   showInfo();
