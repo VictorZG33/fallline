@@ -149,6 +149,17 @@ ul { padding: 0; list-style: none; }
 .sun-read { gap: 12px; font-size: 13px; }
 .sun-clock { font-family: var(--display); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
 
+/* ---- Flight: the map gets the whole screen ---- */
+.flight-stop {
+  position: fixed; z-index: 4; left: 50%; bottom: calc(var(--bottom) + 30px); transform: translateX(-50%);
+  display: none; align-items: center; gap: 9px;
+  padding: 10px 18px; border: 0; border-radius: 22px;
+  font-weight: 650; font-size: 14px;
+}
+.flight-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff5a3c; box-shadow: 0 0 0 4px rgba(255, 90, 60, 0.25); }
+body.flying .flight-stop { display: flex; }
+body.flying .sheet, body.flying .dock { display: none !important; }
+
 /* ---- Sheets ---- */
 .sheet {
   position: fixed; z-index: 4;

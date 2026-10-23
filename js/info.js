@@ -82,9 +82,25 @@ function profileSvg(p, stats) {
 
 // ---- Camera flight along a line ---------------------------------------------------------
 
-// A chase camera: it trails the point along the line, stays clear of the
-// terrain between itself and the point, and looks a little way ahead.
-function flyAlong(map, coords, eles, onEnd) {
+// Candidate camera placements relative to the point: degrees off straight
+// behind, and distance back. Straight behind and far is preferred; the others
+// win when they see the line from a lower, more oblique angle.
+const PLACES = [0, -45, 45, -90, 90].flatMap((off) => [600, 420, 280].map((back) => ({ off, back })));
+const AHEAD = 120;             // the camera looks this far down the line
+const CLEARANCE = 35;          // metres of air the sight line keeps over the terrain
+// Where the sight line is checked, as fractions of the way from the look point
+// to the camera; dense near the look point, where a small rise hides it.
+const SIGHT = [0.01, 0.03, 0.06, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+
+// A chase camera planned before take-off. For points along the line it tries
+// each placement, raising the camera until the straight sight line to where it
+// looks clears the DEM everywhere in between (in a couloir the summit ridge,
+// not the ground under the camera, is what gets in the way). Then it keeps the
+// placement that looks down least steeply. On a run straight down the fall
+// line that is usually off to the side, where the slope doesn't climb away
+// behind the skier. The heights come from the terrain worker, so tiles the map
+// hasn't loaded yet are accounted for.
+function flyAlong(map, terrain, coords, onEnd) {
   const cum = [0];
   for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + haversine(coords[i - 1], coords[i]));
   const total = cum[cum.length - 1];
@@ -100,39 +116,12 @@ function flyAlong(map, coords, eles, onEnd) {
   const bearingTo = (a, b) => {
     const y = Math.sin((b[0] - a[0]) * D2R) * Math.cos(b[1] * D2R);
     const x = Math.cos(a[1] * D2R) * Math.sin(b[1] * D2R) - Math.sin(a[1] * D2R) * Math.cos(b[1] * D2R) * Math.cos((b[0] - a[0]) * D2R);
-    return Math.atan2(y, x) / D2R;
+    return Math.atan2(y, x);
   };
-  const offset = (p, brg, m) => [p[0] + (m * Math.sin(brg * D2R)) / (R * Math.cos(p[1] * D2R)) / D2R, p[1] + (m * Math.cos(brg * D2R)) / R / D2R];
-  // Elevation along the line from the DEM profile, for terrain the map hasn't loaded yet.
-  const eleAt = (d) => {
-    const i = Math.max(0, cum.findIndex((c) => c >= d));
-    return eles?.[i] ?? 0;
-  };
-  let base = 0;
-  const ground = (p) => map.queryTerrainElevation(p) ?? base;
-  const BACK = 620, AHEAD = 160;
+  const offset = (p, brg, m) => [p[0] + (m * Math.sin(brg)) / (R * Math.cos(p[1] * D2R)) / D2R, p[1] + (m * Math.cos(brg)) / R / D2R];
 
-  let bearing = bearingTo(at(0), at(150));
-  let alt = null;
-  const camera = (d) => {
-    const target = at(d);
-    base = eleAt(d);
-    let delta = ((bearingTo(at(d - 50), at(d + 150)) - bearing + 540) % 360) - 180;
-    bearing += delta * 0.05;
-    const cam = offset(target, bearing + 180, BACK);
-    // Highest ground between the camera and the point, plus some air.
-    let floor = -Infinity;
-    for (let k = 0; k <= 6; k++) floor = Math.max(floor, ground(offset(target, bearing + 180, (BACK * k) / 6)));
-    const want = Math.max(floor + 120, ground(target) + 260);
-    alt = alt === null ? want : Math.max(want, alt + (want - alt) * 0.08);
-    const look = at(d + AHEAD);
-    return map.calculateCameraOptionsFromTo(maplibregl.LngLat.convert(cam), alt, maplibregl.LngLat.convert(look), ground(look));
-  };
-
-  const ms = Math.max(9000, Math.min(45000, (total / 45) * 1000));
-  let start = null;
-  let raf = 0;
   let stopped = false;
+  let raf = 0;
   const stop = () => {
     if (stopped) return;
     stopped = true;
@@ -140,18 +129,104 @@ function flyAlong(map, coords, eles, onEnd) {
     map.off('mousedown', stop); map.off('touchstart', stop); map.off('wheel', stop);
     onEnd?.();
   };
-  const frame = (now) => {
+
+  (async () => {
+    // Keyframes along the line, each with a heading averaged over ±80 m so the
+    // camera swings smoothly rather than following every kink.
+    const n = Math.max(2, Math.min(150, Math.ceil(total / 10)));
+    const ds = Array.from({ length: n + 1 }, (_, i) => (total * i) / n);
+    const raw = ds.map((d) => bearingTo(at(d - 40), at(d + 120)));
+    const win = Math.max(1, Math.round(80 / (total / n)));
+    const heading = raw.map((_, i) => {
+      let sx = 0, sy = 0;
+      for (let j = Math.max(0, i - win); j <= Math.min(n, i + win); j++) { sx += Math.sin(raw[j]); sy += Math.cos(raw[j]); }
+      return Math.atan2(sx, sy);
+    });
+    const targets = ds.map(at);
+    const looks = ds.map((d) => at(d + AHEAD));
+
+    // Every point whose height matters: each look point, and the sight line
+    // from it back to each candidate camera position.
+    const pts = [...looks];
+    const cams = PLACES.map(({ off, back }) => targets.map((t, i) => offset(t, heading[i] + Math.PI + off * D2R, back)));
+    for (const row of cams) {
+      row.forEach((c, i) => {
+        for (const f of SIGHT) pts.push([looks[i][0] + (c[0] - looks[i][0]) * f, looks[i][1] + (c[1] - looks[i][1]) * f]);
+      });
+    }
+    const h = await terrain.heights(pts).catch(() => null);
     if (stopped) return;
-    start ??= now;
-    const f = Math.min(1, (now - start) / ms);
-    const eased = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
-    map.jumpTo(camera(total * eased));
-    if (f < 1) raf = requestAnimationFrame(frame);
-    else stop();
-  };
-  map.flyTo({ ...camera(0), duration: 1800, essential: true });
-  map.once('moveend', () => (raf = requestAnimationFrame(frame)));
-  setTimeout(() => { map.on('mousedown', stop); map.on('touchstart', stop); map.on('wheel', stop); }, 1900);
+    if (!h) return stop();
+    // Heights are drawn exaggerated, so the camera works in the same units.
+    const ex = map.getTerrain()?.exaggeration ?? 1;
+    const lookAlt = looks.map((_, i) => (h[i] ?? 0) * ex);
+
+    // Lowest camera altitude per keyframe for each candidate distance.
+    const plans = cams.map((row, b) => row.map((c, i) => {
+      const base = looks.length + (b * targets.length + i) * SIGHT.length;
+      const hl = lookAlt[i];
+      const reach = haversine(c, looks[i]);
+      let need = hl + 150;
+      SIGHT.forEach((f, k) => {
+        const g = h[base + k];
+        if (g == null) return;
+        // The margin grows from 2 m at the look point to the full clearance.
+        const margin = Math.min(CLEARANCE, 2 + 0.25 * f * reach);
+        need = Math.max(need, hl + (g * ex + margin - hl) / f);
+      });
+      return need;
+    }));
+    // Score each placement by how steeply it mostly looks down (90th
+    // percentile over the flight), with a little extra for leaving straight
+    // behind or coming in close, and keep the best.
+    const score = plans.map((alts, b) => {
+      const { off, back } = PLACES[b];
+      const angles = alts.map((a, i) => Math.atan2(a - lookAlt[i], haversine(cams[b][i], looks[i])) / D2R).sort((x, y) => x - y);
+      return angles[Math.floor(angles.length * 0.9)] + (Math.abs(off) / 45) * 6 + ((600 - back) / 180) * 2;
+    });
+    const pick = score.indexOf(Math.min(...score));
+    // Smooth the altitude without dipping under what any keyframe needs: take
+    // the running maximum, then average it.
+    const need = plans[pick];
+    const w = Math.max(1, Math.round(60 / (total / n)));
+    const env = need.map((_, i) => Math.max(...need.slice(Math.max(0, i - w), i + w + 1)));
+    const alt = env.map((_, i) => {
+      const s = env.slice(Math.max(0, i - w), i + w + 1);
+      return s.reduce((a, b) => a + b, 0) / s.length;
+    });
+    const camPos = cams[pick];
+
+    const lerp = (a, b, f) => a + (b - a) * f;
+    // `lift` raises the camera straight up, which only ever lifts the sight line.
+    const frameAt = (d, lift = 0) => {
+      const x = Math.max(0, Math.min(n, (d / total) * n));
+      const i = Math.min(n - 1, Math.floor(x)), f = x - i;
+      const c = [lerp(camPos[i][0], camPos[i + 1][0], f), lerp(camPos[i][1], camPos[i + 1][1], f)];
+      const l = [lerp(looks[i][0], looks[i + 1][0], f), lerp(looks[i][1], looks[i + 1][1], f)];
+      return map.calculateCameraOptionsFromTo(maplibregl.LngLat.convert(c), lerp(alt[i], alt[i + 1], f) + lift, maplibregl.LngLat.convert(l), lerp(lookAlt[i], lookAlt[i + 1], f));
+    };
+
+    // Arrive high above the first camera position (MapLibre's own flight
+    // path knows nothing about the terrain), then sink onto the planned
+    // altitude during the first moments of the run.
+    const ARRIVE = 500, SETTLE = 1500;
+    const ms = Math.max(9000, Math.min(45000, (total / 45) * 1000));
+    let start = null;
+    const frame = (now) => {
+      if (stopped) return;
+      start ??= now;
+      const t = now - start;
+      const f = Math.min(1, t / ms);
+      const eased = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
+      const lift = ARRIVE * (1 - Math.min(1, t / SETTLE)) ** 2;
+      map.jumpTo(frameAt(total * eased, lift));
+      if (f < 1) raf = requestAnimationFrame(frame);
+      else stop();
+    };
+    map.flyTo({ ...frameAt(0, ARRIVE), duration: 1800, essential: true });
+    map.once('moveend', () => !stopped && (raf = requestAnimationFrame(frame)));
+    setTimeout(() => { if (!stopped) { map.on('mousedown', stop); map.on('touchstart', stop); map.on('wheel', stop); } }, 1900);
+  })();
   return stop;
 }
 
@@ -160,6 +235,18 @@ function flyAlong(map, coords, eles, onEnd) {
 export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }) {
   let token = 0;
   let stopFlight = null;
+  // While flying, the sheet and legend step aside; a button (or any touch on
+  // the map) ends the flight and brings them back.
+  let flight = 0;
+  function fly(path) {
+    stopFlight?.();
+    const id = ++flight;
+    document.body.classList.add('flying');
+    // Leave the class on briefly so the tap that stopped the flight isn't
+    // also read as a tap on the map.
+    stopFlight = flyAlong(map, terrain, path, () => setTimeout(() => id === flight && document.body.classList.remove('flying'), 350));
+  }
+  document.getElementById('flight-stop')?.addEventListener('click', () => stopFlight?.());
   const cursor = new maplibregl.Marker({ element: Object.assign(document.createElement('div'), { className: 'cursor-dot' }) });
 
   function open(html, selection) {
@@ -289,7 +376,7 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
         <button type="button" class="btn" data-act="gpx">${t('info.gpx')}</button>
       </div>`;
     wireProfile(shown, st, shown.pts);
-    body.querySelector('[data-act=fly]').onclick = () => { stopFlight?.(); stopFlight = flyAlong(map, shown.pts, shown.ele); };
+    body.querySelector('[data-act=fly]').onclick = () => fly(shown.pts);
     body.querySelector('[data-act=gpx]').onclick = () => download(`${title.replace(/[^\p{L}\p{N}]+/gu, '-')}.gpx`, toGpx(title, shown.pts, shown.ele));
   }
 
@@ -309,8 +396,7 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
     const lengthM = st?.length ?? coords.slice(1).reduce((s, c, i) => s + haversine(coords[i], c), 0);
     // Ride it uphill.
     let path = prof ? prof.pts : coords;
-    let eles = prof ? prof.ele : null;
-    if (st?.downhill) { path = path.slice().reverse(); eles = eles?.slice().reverse(); }
+    if (st?.downhill) path = path.slice().reverse();
     const ride = p.duration || null;
     body.innerHTML = `${head}
       <dl class="stats">
@@ -322,7 +408,7 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
         ${p.occupancy ? stat(t('info.seats'), String(p.occupancy)) : ''}
       </dl>
       <div class="actions"><button type="button" class="btn primary" data-act="fly">${t('info.flyUp')}</button></div>`;
-    body.querySelector('[data-act=fly]').onclick = () => { stopFlight?.(); stopFlight = flyAlong(map, path, eles); };
+    body.querySelector('[data-act=fly]').onclick = () => fly(path);
   }
 
   async function showTrack(track) {
@@ -352,7 +438,7 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
         <button type="button" class="btn danger" data-act="del">${t('info.delete')}</button>
       </div>`;
     if (st) wireProfile(prof, st, prof.pts);
-    body.querySelector('[data-act=fly]').onclick = () => { stopFlight?.(); stopFlight = flyAlong(map, prof ? prof.pts : thin, prof?.ele); };
+    body.querySelector('[data-act=fly]').onclick = () => fly(prof ? prof.pts : thin);
     body.querySelector('[data-act=del]').onclick = () => { onDeleteTrack?.(track.id); close(); };
   }
 

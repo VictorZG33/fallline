@@ -192,6 +192,7 @@ geolocate.on('error', (e) => e.code === 1 && showStatus(t('locate.denied')));
 // ---- Map clicks ---------------------------------------------------------------------
 
 map.on('click', (e) => {
+  if (document.body.classList.contains('flying')) return;
   if (!sheets.search.hidden || !sheets.layers.hidden) {
     closeSheets();
     return;

@@ -327,6 +327,15 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     return read(lon, lat);
   }
 
+  // Elevation at many points (null where there is no data).
+  async function heights(points) {
+    const read = await reader(points);
+    return points.map(([lon, lat]) => {
+      const r = read(lon, lat);
+      return r ? Math.round(r.ele * 10) / 10 : null;
+    });
+  }
+
   // Slope statistics over a polygon (outer ring first), on a grid of about 15 m.
   async function area(rings) {
     const outer = rings[0];
@@ -361,7 +370,7 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     };
   }
 
-  return { shadeTile, profile, point, area };
+  return { shadeTile, profile, point, heights, area };
 }
 
 // One pass of a 3x3 box filter, edges clamped.

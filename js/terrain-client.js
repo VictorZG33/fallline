@@ -30,6 +30,7 @@ async function runLocal(msg) {
   if (msg.type === 'tile') return createImageBitmap(new ImageData(await local.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask), 512, 512));
   if (msg.type === 'profile') return local.profile(msg.coords, msg.step);
   if (msg.type === 'point') return local.point(msg.lon, msg.lat);
+  if (msg.type === 'heights') return local.heights(msg.points);
   if (msg.type === 'area') return local.area(msg.rings);
 }
 
@@ -72,6 +73,7 @@ function call(msg, signal) {
 export const terrain = {
   profile: (coords, step = 20) => call({ type: 'profile', coords, step }),
   point: (lon, lat) => call({ type: 'point', lon, lat }),
+  heights: (points) => call({ type: 'heights', points }),
   area: (rings) => call({ type: 'area', rings }),
 };
 
