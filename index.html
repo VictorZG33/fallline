@@ -88,9 +88,12 @@
   <h3 data-i18n="layers.basemap">Base map</h3>
   <div class="tiles3" role="radiogroup" data-setting="basemap">
     <button type="button" role="radio" data-value="satellite" class="map-tile t-satellite"><span data-i18n="basemap.satellite">Satellite</span></button>
+    <button type="button" role="radio" data-value="snow" class="map-tile t-snow"><span data-i18n="basemap.snow">Winter satellite</span></button>
     <button type="button" role="radio" data-value="winter" class="map-tile t-winter"><span data-i18n="basemap.winter">Winter</span></button>
     <button type="button" role="radio" data-value="topo" class="map-tile t-topo"><span data-i18n="basemap.topo">Topo</span></button>
   </div>
+
+  <p id="snow-note" class="muted small basemap-note" data-i18n="basemap.snowNote" hidden></p>
 
   <h3 data-i18n="layers.overlay">Terrain shading</h3>
   <div class="seg" role="radiogroup" data-setting="overlay">

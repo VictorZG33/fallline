@@ -21,7 +21,7 @@ self.onmessage = async ({ data: msg }) => {
   try {
     if (msg.type === 'tile') {
       if (cancelled.delete(msg.id)) return;
-      const rgba = await engine.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
+      const rgba = msg.mode === 'snow' ? await engine.snowTile(msg.z, msg.x, msg.y) : await engine.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
       if (cancelled.delete(msg.id)) return;
       const bitmap = await createImageBitmap(new ImageData(rgba, 512, 512));
       self.postMessage({ id: msg.id, result: bitmap }, [bitmap]);
@@ -29,6 +29,9 @@ self.onmessage = async ({ data: msg }) => {
       self.postMessage({ id: msg.id, result: await engine.profile(msg.coords, msg.step) });
     } else if (msg.type === 'point') {
       self.postMessage({ id: msg.id, result: await engine.point(msg.lon, msg.lat) });
+    } else if (msg.type === 'open') {
+      engine.setOpen(msg.lines);
+      self.postMessage({ id: msg.id, result: true });
     } else if (msg.type === 'heights') {
       self.postMessage({ id: msg.id, result: await engine.heights(msg.points) });
     } else if (msg.type === 'area') {

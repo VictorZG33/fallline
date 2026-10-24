@@ -10,6 +10,11 @@ FATMAP 被 Strava 收购后下线了。滚落线把它最好用的部分做回�
 
 - **3D terrain** you can tilt and spin, on satellite imagery, a white winter
   map, or OpenTopoMap.
+- **Winter satellite** (the default): snow laid over the summer imagery in the
+  browser, the way FATMAP's winter imagery looked. Forest stays dark, groomed
+  runs and lift lines stay white, snow thins out from 38° and is gone by 56°
+  so cliffs and rock bands show, and the snow is lit by a low winter sun. It
+  shows where snow would lie, not this season's conditions.
 - **Slope-angle shading** in 5° bands from 20° up, on the usual avalanche-terrain
   breaks (30°, 35°, 45°). Tap a band in the legend to hide it, for example to
   show only 30° and steeper.
@@ -46,6 +51,7 @@ No build step: plain ES modules served as static files.
 | Runs and lifts | [OpenSkiData](https://openskidata.org) packs in `data/packs/` (built by `tools/build-data.mjs`), else live from the [Overpass API](https://overpass-api.de) |
 | Contours | [maplibre-contour](https://github.com/onthegomap/maplibre-contour), from the same elevation tiles |
 | Imagery | Esri World Imagery; OpenTopoMap; [OpenFreeMap](https://openfreemap.org) vector tiles for the winter map and labels |
+| Winter satellite | `snowTile` in `js/terrain.js`: Esri tiles plus the DEM gradient; forest is found in the image (green, not bright, with crown shadows), leafless hardwoods by colour, and runs from the piste data |
 | Offline | `sw.js` caches the app, every tile you have seen (up to 6,000), and areas you save |
 
 ```

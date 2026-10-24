@@ -34,6 +34,12 @@ on the coarsest DEM zoom that still resolves that baseline, then interpolates th
 gradient to the output tile. Keep it free of DOM APIs; it runs in
 `terrain-worker.js` and, as a fallback, on the main thread.
 
+The winter satellite base map (`snowTile`) is drawn by the same workers from Esri
+imagery and the 12 m gradient. Forest is detected in the image; groomed runs and
+lift lines come from `setOpen` (sent by `sendOpenGround` in `js/app.js` whenever
+the piste data changes) and are always kept clear. Tune it by eye at Stowe, Big
+Sky, Jackson Hole and Chamonix: forest types and imagery seasons differ a lot.
+
 Run stats (`analyze` in `js/info.js`) are all measured along the line: average
 pitch is drop over length, steepest is the worst 30 m, and the profile is coloured
 by that same pitch. `trail()` in `js/pistes.js` joins same-named OSM sections that

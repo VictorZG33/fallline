@@ -45,7 +45,8 @@ export function plan(map, basemap, bbox) {
     }
   };
   add('dem-terrain', 'dem', 8, 14);
-  if (basemap === 'satellite') add('satellite', 'satellite', 10, 16);
+  // The winter satellite map is drawn from the same imagery.
+  if (basemap === 'satellite' || basemap === 'snow') add('satellite', 'satellite', 10, 16);
   if (basemap === 'topo') add('topo', 'topo', 10, 16);
   add('ofm', 'ofm', 8, 14);
   return { urls: urls.slice(0, MAX_TILES), mb: Math.round(kb / 1024), truncated: urls.length > MAX_TILES };
