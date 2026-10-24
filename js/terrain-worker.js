@@ -29,6 +29,8 @@ self.onmessage = async ({ data: msg }) => {
       self.postMessage({ id: msg.id, result: await engine.profile(msg.coords, msg.step) });
     } else if (msg.type === 'point') {
       self.postMessage({ id: msg.id, result: await engine.point(msg.lon, msg.lat) });
+    } else if (msg.type === 'heights') {
+      self.postMessage({ id: msg.id, result: await engine.heights(msg.points) });
     } else if (msg.type === 'area') {
       self.postMessage({ id: msg.id, result: await engine.area(msg.rings) });
     }

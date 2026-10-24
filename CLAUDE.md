@@ -38,3 +38,10 @@ Run stats (`analyze` in `js/info.js`) are all measured along the line: average
 pitch is drop over length, steepest is the worst 30 m, and the profile is coloured
 by that same pitch. `trail()` in `js/pistes.js` joins same-named OSM sections that
 continue from each other, so a tap gives the whole signed run.
+
+"Fly down" (`flyAlong` in `js/info.js`) plans the whole flight before it starts:
+for keyframes along the line it tries camera placements behind and to the side,
+reads DEM heights along each sight line through the worker (`terrain.heights`),
+raises the camera until the sight line clears the terrain, and keeps the
+placement that looks down least steeply. Check changes against a steep line
+such as Big Couloir at Big Sky (`#15/45.2797/-111.4475/0/0`).
