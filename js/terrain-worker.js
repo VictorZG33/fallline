@@ -1,5 +1,6 @@
 // Module worker hosting the terrain engine. Messages carry an id; replies echo it.
 import { createEngine } from './terrain.js';
+import { createSentinel } from './sentinel.js';
 
 async function decode(blob) {
   const bmp = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
@@ -11,6 +12,7 @@ async function decode(blob) {
 }
 
 const engine = createEngine({ decode });
+const sentinel = createSentinel({ light: engine.lightTile });
 const cancelled = new Set();
 
 self.onmessage = async ({ data: msg }) => {
@@ -21,7 +23,9 @@ self.onmessage = async ({ data: msg }) => {
   try {
     if (msg.type === 'tile') {
       if (cancelled.delete(msg.id)) return;
-      const rgba = msg.mode === 'snow' ? await engine.snowTile(msg.z, msg.x, msg.y) : await engine.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
+      const rgba = msg.mode === 's2' ? await sentinel.render(msg.z, msg.x, msg.y, msg.mask)
+        : msg.mode === 'snow' ? await engine.snowTile(msg.z, msg.x, msg.y)
+        : await engine.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
       if (cancelled.delete(msg.id)) return;
       const bitmap = await createImageBitmap(new ImageData(rgba, 512, 512));
       self.postMessage({ id: msg.id, result: bitmap }, [bitmap]);
@@ -34,6 +38,11 @@ self.onmessage = async ({ data: msg }) => {
       self.postMessage({ id: msg.id, result: true });
     } else if (msg.type === 'heights') {
       self.postMessage({ id: msg.id, result: await engine.heights(msg.points) });
+    } else if (msg.type === 'scene') {
+      sentinel.setScene(msg.scene);
+      self.postMessage({ id: msg.id, result: true });
+    } else if (msg.type === 'sceneStats') {
+      self.postMessage({ id: msg.id, result: await sentinel.stats(msg.items, msg.bbox, msg.withSnow) });
     } else if (msg.type === 'area') {
       self.postMessage({ id: msg.id, result: await engine.area(msg.rings) });
     }
