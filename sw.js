@@ -1,6 +1,6 @@
 // Service worker: keeps the app shell, resort packs and every map tile it has
 // seen, so the map keeps working where the mountain has no signal.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = `fl-shell-${VERSION}`;
 const DATA = 'fl-data';
 const TILES = 'fl-tiles';

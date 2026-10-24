@@ -1,7 +1,7 @@
 // The map style: basemaps, elevation, shading overlays, pistes and labels.
 // buildStyle() makes the initial style; applyView() pushes later setting
 // changes onto the live map without reloading it.
-import { DEM_URL } from './terrain.js';
+import { DEM_URL, IMAGERY_URL } from './terrain.js';
 import { shadeUrl } from './terrain-client.js';
 
 const FONT = ['Noto Sans Regular'];
@@ -17,7 +17,7 @@ const ATTR = {
   ski: 'Pistes: <a href="https://openskidata.org">OpenSkiData</a> (ODbL)',
 };
 
-export const BASEMAPS = ['satellite', 'winter', 'topo'];
+export const BASEMAPS = ['satellite', 'snow', 'winter', 'topo'];
 
 const z = (stops) => ['interpolate', ['linear'], ['zoom'], ...stops];
 
@@ -31,7 +31,7 @@ export function buildStyle(s) {
       'dem-shade': { ...dem },
       satellite: {
         type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tiles: [IMAGERY_URL],
         tileSize: 256,
         maxzoom: 18,
         attribution: ATTR.esri,
@@ -44,6 +44,8 @@ export function buildStyle(s) {
         attribution: ATTR.topo,
       },
       ofm: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: `${ATTR.ofm} ${ATTR.osm}` },
+      // Satellite imagery with simulated snow, drawn by the terrain worker.
+      snow: { type: 'raster', tiles: [shadeUrl('snow', 0)], tileSize: 512, maxzoom: 17, attribution: `${ATTR.esri} ${ATTR.dem}` },
       slope: { type: 'raster', tiles: [shadeUrl('slope', s.slopeMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       aspect: { type: 'raster', tiles: [shadeUrl('aspect', s.aspectMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       pistes: { type: 'geojson', data: empty(), attribution: `${ATTR.ski} ${ATTR.osm}`, tolerance: 0.2 },
@@ -64,6 +66,7 @@ export function buildStyle(s) {
       { id: 'background', type: 'background', paint: { 'background-color': '#eef1f4' } },
       { id: 'satellite', type: 'raster', source: 'satellite', paint: { 'raster-fade-duration': 150, 'raster-saturation': -0.1, 'raster-contrast': 0.05 } },
       { id: 'topo', type: 'raster', source: 'topo', paint: { 'raster-fade-duration': 150 } },
+      { id: 'snow', type: 'raster', source: 'snow', paint: { 'raster-fade-duration': 150 } },
 
       // Winter basemap: snow white, forest in grey-green, ice faintly blue.
       { id: 'w-wood', type: 'fill', source: 'ofm', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], 'wood'], paint: { 'fill-color': '#cfdccf', 'fill-opacity': 0.75 } },
@@ -183,6 +186,7 @@ export function applyView(map, s) {
 
   set('satellite', 'visibility', vis(s.basemap === 'satellite'));
   set('topo', 'visibility', vis(s.basemap === 'topo'));
+  set('snow', 'visibility', vis(s.basemap === 'snow'));
   for (const id of WINTER_LAYERS) set(id, 'visibility', vis(s.basemap === 'winter'));
   set('slope', 'visibility', vis(s.overlay === 'slope'));
   set('aspect', 'visibility', vis(s.overlay === 'aspect'));
@@ -202,7 +206,7 @@ export function applyView(map, s) {
   paint('contour-line', 'line-color', dark ? 'rgba(255,255,255,0.32)' : 'rgba(60,74,98,0.38)');
   paint('contour-label', 'text-color', dark ? 'rgba(255,255,255,0.85)' : '#4a5568');
   paint('contour-label', 'text-halo-color', dark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)');
-  paint('background', 'background-color', s.basemap === 'winter' ? '#f3f5f7' : '#20252b');
+  paint('background', 'background-color', s.basemap === 'winter' || s.basemap === 'snow' ? '#f3f5f7' : '#20252b');
 
   if (map.getTerrain()?.exaggeration !== s.exaggeration) map.setTerrain({ source: 'dem-terrain', exaggeration: s.exaggeration });
 }

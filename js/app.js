@@ -1,6 +1,6 @@
 // Fall Line: wires the map, the panels and the settings together.
 import * as maplibregl from '../vendor/maplibre-gl/maplibre-gl.mjs';
-import { registerShadeProtocol, terrain } from './terrain-client.js';
+import { registerShadeProtocol, terrain, shadeUrl } from './terrain-client.js';
 import { buildStyle, applyView, setMasks, addContours, CLICKABLE } from './style.js';
 import { SLOPE_BANDS, ASPECTS, slopeColor, aspectColor } from './terrain.js';
 import { createPisteStore } from './pistes.js';
@@ -17,7 +17,7 @@ const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(
 // ---- Settings -------------------------------------------------------------------
 
 const DEFAULTS = {
-  basemap: 'satellite', overlay: 'slope', slopeMask: 0b1111111, aspectMask: 0b11111111,
+  basemap: 'snow', overlay: 'slope', slopeMask: 0b1111111, aspectMask: 0b11111111,
   slopeOpacity: 0.6, aspectOpacity: 0.6, exaggeration: 1, pistes: true, labels: true, contours: true,
   units: null, lang: null,
 };
@@ -112,8 +112,30 @@ const pistes = createPisteStore(map, {
   resorts,
   nearestConvention,
   ready: indexReady,
+  onChange: sendOpenGround,
   onStatus: (n) => showStatus(n > 0 ? t('status.pistes') : navigator.onLine ? '' : t('status.offline')),
 });
+
+// The winter satellite map keeps groomed runs and lift lines clear of forest.
+// Send their geometry to the terrain worker, then redraw that map once.
+let openVersion = 0;
+let openTimer = 0;
+function sendOpenGround(features) {
+  clearTimeout(openTimer);
+  // The first batch goes quickly, before many snow tiles have been drawn without it.
+  openTimer = setTimeout(async () => {
+    const lines = [];
+    for (const f of features) {
+      const p = f.properties, g = f.geometry;
+      if (p.kind === 'lift' && g.type === 'LineString') lines.push({ coords: g.coordinates, half: 8 });
+      if (p.kind !== 'run' || p.style !== 'solid' || p.gladed) continue;
+      if (g.type === 'LineString') lines.push({ coords: g.coordinates, half: 16 });
+      else if (g.type === 'Polygon') lines.push({ coords: g.coordinates, polygon: true });
+    }
+    await terrain.setOpen(lines).catch(() => {});
+    map.getSource('snow')?.setTiles([shadeUrl('snow', ++openVersion)]);
+  }, openVersion ? 600 : 150);
+}
 
 let tracks = [];
 function drawTracks() {
@@ -254,6 +276,7 @@ function syncPanel() {
     group.querySelectorAll('[data-value]').forEach((b) => b.setAttribute('aria-checked', String(String(settings[group.dataset.setting]) === b.dataset.value)));
   });
   document.querySelectorAll('[data-toggle]').forEach((el) => (el.checked = !!settings[el.dataset.toggle]));
+  $('#snow-note').hidden = settings.basemap !== 'snow';
   const op = $('#opacity');
   op.value = settings.overlay === 'aspect' ? settings.aspectOpacity : settings.slopeOpacity;
   op.disabled = settings.overlay === 'none';

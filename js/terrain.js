@@ -4,10 +4,11 @@
 // where workers can't decode images.
 
 export const DEM_URL = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp';
+export const IMAGERY_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const DEM_SIZE = 512;
 const DEM_MAX_ZOOM = 17;   // the finest zoom Mapterhorn serves anywhere (1 m data)
 const PROFILE_ZOOM = 14;   // about 3 m per pixel at mid latitudes
-const CACHE_TILES = 40;    // 1 MB each once decoded
+const CACHE_TILES = 32;    // 1 MB each once decoded
 const EARTH = 6378137;
 const D2R = Math.PI / 180;
 
@@ -197,13 +198,31 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     return { s, nx0, ny0, W, H, gx, gy };
   }
 
+  // The slope overlay and the winter satellite map want the same gradients
+  // for the same tile, so keep the last few.
+  const gradCache = new Map();
+  function cachedGradients(z, x, y, size, baseline, blur = 0) {
+    const k = `${z}/${x}/${y}/${size}/${baseline}/${blur}`;
+    let p = gradCache.get(k);
+    if (p) {
+      gradCache.delete(k);
+      gradCache.set(k, p);
+      return p;
+    }
+    p = gradients(z, x, y, size, baseline, blur);
+    p.catch(() => gradCache.delete(k));
+    gradCache.set(k, p);
+    while (gradCache.size > 8) gradCache.delete(gradCache.keys().next().value);
+    return p;
+  }
+
   // Slope or aspect tile as RGBA. `mask` is a bit field of visible bands/sectors.
   async function shadeTile(mode, z, x, y, mask, size = DEM_SIZE) {
     const out = new Uint8ClampedArray(size * size * 4);
     // Slope over about 12 m keeps short steep pitches; Mapterhorn's height
     // steps (1/8 m at z14) would stripe the bands any finer. Aspect only needs
     // to say which way a slope faces, so it is read over ~40 m and smoothed.
-    const gr = mode === 'slope' ? await gradients(z, x, y, size, 12) : await gradients(z, x, y, size, 40, 2);
+    const gr = mode === 'slope' ? await cachedGradients(z, x, y, size, 12) : await cachedGradients(z, x, y, size, 40, 2);
     if (!gr) return out;
     const { s, nx0, ny0, W, H, gx, gy } = gr;
     for (let j = 0; j < size; j++) {
@@ -232,6 +251,199 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
           out[o] = rgb[0]; out[o + 1] = rgb[1]; out[o + 2] = rgb[2];
           out[o + 3] = Math.round(255 * Math.min(1, 0.35 + (slope - ASPECT_MIN_SLOPE) / 25));
         }
+      }
+    }
+    return out;
+  }
+
+  // The satellite imagery under a 512 px tile at (z, x, y): its four 256 px
+  // children at z + 1, stitched. Quadrants that fail stay transparent.
+  async function imagery(z, x, y) {
+    const out = new Uint8ClampedArray(512 * 512 * 4);
+    let any = false;
+    await Promise.all([0, 1, 2, 3].map(async (q) => {
+      const tx = 2 * x + (q & 1), ty = 2 * y + (q >> 1);
+      try {
+        const res = await fetchFn(IMAGERY_URL.replace('{z}', z + 1).replace('{y}', ty).replace('{x}', tx));
+        if (!res.ok) return;
+        const img = await decode(await res.blob());
+        if (img.width !== 256 || img.height !== 256) return;
+        for (let j = 0; j < 256; j++) out.set(img.data.subarray(j * 1024, (j + 1) * 1024), ((q >> 1) * 256 + j) * 2048 + (q & 1) * 1024);
+        any = true;
+      } catch {}
+    }));
+    return any ? out : null;
+  }
+
+  // Ski runs and lift lines, which are open ground whatever the imagery
+  // suggests (summer grass on a trail can look a lot like canopy).
+  let open = [];
+  function setOpen(lines) {
+    open = lines.map((l) => {
+      let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const ring of l.polygon ? l.coords : [l.coords]) for (const [lon, lat] of ring) { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); }
+      return { ...l, bbox: [w, s, e, n] };
+    });
+  }
+
+  // 0..1 per pixel: how surely each pixel of the tile lies on a run or lift line.
+  function openMask(z, x, y, size) {
+    const mask = new Float32Array(size * size);
+    const lat = yToLat((y + 0.5) * size, z);
+    const mpp = metersPerPixel(lat, z);
+    const west = (x * size * 360) / worldSize(z) - 180, east = ((x + 1) * size * 360) / worldSize(z) - 180;
+    const north = yToLat(y * size, z), south = yToLat((y + 1) * size, z);
+    const pad = 0.002;
+    const px = (lon) => lonToX(lon, z) - x * size, py = (la) => latToY(la, z) - y * size;
+    for (const l of open) {
+      const [w, s, e, n] = l.bbox;
+      if (e < west - pad || w > east + pad || n < south - pad || s > north + pad) continue;
+      if (l.polygon) {
+        const rings = l.coords.map((ring) => ring.map(([lo, la]) => [px(lo), py(la)]));
+        let y0 = Infinity, y1 = -Infinity;
+        for (const [, yy] of rings[0]) { y0 = Math.min(y0, yy); y1 = Math.max(y1, yy); }
+        for (let j = Math.max(0, Math.floor(y0)); j <= Math.min(size - 1, Math.ceil(y1)); j++) {
+          const yc = j + 0.5, xs = [];
+          for (const ring of rings) {
+            for (let k = 0, m = ring.length - 1; k < ring.length; m = k++) {
+              const [xa, ya] = ring[m], [xb, yb] = ring[k];
+              if (ya > yc !== yb > yc) xs.push(xa + ((yc - ya) * (xb - xa)) / (yb - ya));
+            }
+          }
+          xs.sort((a, b) => a - b);
+          for (let k = 0; k + 1 < xs.length; k += 2) {
+            for (let i = Math.max(0, Math.ceil(xs[k] - 0.5)); i <= Math.min(size - 1, Math.floor(xs[k + 1] - 0.5)); i++) mask[j * size + i] = 1;
+          }
+        }
+        continue;
+      }
+      // Lines: a soft-edged stroke `half` metres either side of the centre line.
+      const half = l.half / mpp, soft = 6 / mpp;
+      const pts = l.coords.map(([lo, la]) => [px(lo), py(la)]);
+      for (let k = 1; k < pts.length; k++) {
+        const [ax, ay] = pts[k - 1], [bx, by] = pts[k];
+        const r = half + soft;
+        const i0 = Math.max(0, Math.floor(Math.min(ax, bx) - r)), i1 = Math.min(size - 1, Math.ceil(Math.max(ax, bx) + r));
+        const j0 = Math.max(0, Math.floor(Math.min(ay, by) - r)), j1 = Math.min(size - 1, Math.ceil(Math.max(ay, by) + r));
+        if (i0 > i1 || j0 > j1) continue;
+        const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy || 1;
+        for (let j = j0; j <= j1; j++) {
+          for (let i = i0; i <= i1; i++) {
+            const cx = i + 0.5 - ax, cy = j + 0.5 - ay;
+            const t = Math.max(0, Math.min(1, (cx * dx + cy * dy) / len2));
+            const d = Math.hypot(cx - t * dx, cy - t * dy);
+            const v = d <= half ? 1 : 1 - (d - half) / soft;
+            if (v > mask[j * size + i]) mask[j * size + i] = v;
+          }
+        }
+      }
+    }
+    return mask;
+  }
+
+  // Simulated mid-winter imagery: snow laid over the summer satellite image
+  // wherever it would lie. Forest stays dark: it is picked out of the image as
+  // green, not bright, and holding the deep shadows that tree crowns cast
+  // (grass of the same colour is smooth), and never on a mapped run or lift
+  // line. Snow thins out between 38° and 56°, going first from the darkest
+  // rock, so cliffs and rock ribs show through. It is lit by a low winter sun
+  // from the south-east (north-east below the equator), the way a real
+  // morning satellite pass sees it.
+  async function snowTile(z, x, y) {
+    const size = 512, N = size * size;
+    const out = new Uint8ClampedArray(N * 4);
+    const [img, gr] = await Promise.all([imagery(z, x, y), cachedGradients(z, x, y, size, 12)]);
+    // No imagery at all (offline beyond what was saved): fail, and MapLibre
+    // stretches the parent tile instead of showing blank snow.
+    if (!img) throw new Error(`No imagery for ${z}/${x}/${y}`);
+
+    // Per-pixel image measures for the forest test.
+    const Yv = new Float32Array(N), Y2 = new Float32Array(N), Gv = new Float32Array(N), Sv = new Float32Array(N);
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const a = img[o + 3] ? 1 : 0;
+      const r = a ? img[o] : 200, g = a ? img[o + 1] : 200, b = a ? img[o + 2] : 200;
+      Yv[k] = 0.3 * r + 0.59 * g + 0.11 * b;
+      Y2[k] = Yv[k] * Yv[k];
+      Gv[k] = g;
+      Sv[k] = r + g + b;
+    }
+    const gcc = boxMean(Gv, size, 2), sum = boxMean(Sv, size, 2), Ym = boxMean(Yv, size, 3), Ymin = minFilter(Yv, size, 2);
+    const Y5 = boxMean(Yv, size, 2), Y25 = boxMean(Y2, size, 2);
+    let tree = new Float32Array(N), bare = new Float32Array(N);
+    for (let k = 0, o = 0; k < N; k++, o += 4) {
+      const share = gcc[k] / Math.max(1, sum[k]);
+      tree[k] = smooth(0.35, 0.375, share) * smooth(80, 50, Ymin[k]) * smooth(140, 100, Ym[k]);
+      // Leafless hardwoods (imagery shot with the leaves off): brownish,
+      // fairly dark from the shadows between trunks, not green. Bright tan
+      // summer grass is too light to count.
+      const warm = img[o + 3] ? img[o] - img[o + 2] : 0;
+      bare[k] = smooth(0.355, 0.34, share) * smooth(3, 16, warm) * smooth(150, 112, Ym[k]);
+    }
+    tree = boxMean(tree, size, 1);
+    bare = boxMean(bare, size, 2);
+    const openGround = open.length ? openMask(z, x, y, size) : null;
+
+    const lat = yToLat((y + 0.5) * size, z);
+    const az = (lat >= 0 ? 150 : 30) * D2R, alt = 25 * D2R;
+    const sx = Math.sin(az) * Math.cos(alt), sy = Math.cos(az) * Math.cos(alt), sz = Math.sin(alt);
+    for (let j = 0; j < size; j++) {
+      let y0 = 0, fy = 0;
+      if (gr) {
+        const v = Math.min(gr.H - 1, Math.max(0, (y * size + j + 0.5) / gr.s - 0.5 - gr.ny0));
+        y0 = Math.min(gr.H - 2, Math.floor(v)); fy = v - y0;
+      }
+      for (let i = 0; i < size; i++) {
+        let dzdx = 0, dzdy = 0;
+        if (gr) {
+          const u = Math.min(gr.W - 1, Math.max(0, (x * size + i + 0.5) / gr.s - 0.5 - gr.nx0));
+          const x0 = Math.min(gr.W - 2, Math.floor(u)), fx = u - x0;
+          const p = y0 * gr.W + x0, W = gr.W;
+          dzdx = lerp2(gr.gx[p], gr.gx[p + 1], gr.gx[p + W], gr.gx[p + W + 1], fx, fy);
+          dzdy = lerp2(gr.gy[p], gr.gy[p + 1], gr.gy[p + W], gr.gy[p + W + 1], fx, fy);
+        }
+        const k = j * size + i, o = k * 4;
+        // Surface normal (east, north, up); image rows run south, so north is -dzdy.
+        const nl = Math.sqrt(dzdx * dzdx + dzdy * dzdy + 1);
+        const light = (-dzdx * sx + dzdy * sy + sz) / nl / sz; // 1 on flat ground
+        const slope = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy)) / D2R;
+
+        const has = img[o + 3];
+        const r = has ? img[o] : 200, g = has ? img[o + 1] : 200, b = has ? img[o + 2] : 200;
+        const Y = Yv[k];
+
+        // Snow: white in sun, pale blue in shade, with a trace of the image's
+        // own detail so roads, lift lines and buildings still read. Where the
+        // image is rough but not green (leafless hardwoods, boulder fields),
+        // its darker pixels grey the snow, like the speckle of trunks and
+        // rocks in real winter imagery. Groomed runs stay smooth.
+        const t = clamp01(0.35 + 0.6 * light);
+        const sd = Math.sqrt(Math.max(0, Y25[k] - Y5[k] * Y5[k]));
+        const rough = smooth(10, 26, sd) * (1 - tree[k]) * (openGround ? 1 - openGround[k] : 1);
+        const speckle = 1 - rough * 0.8 * (1 - clamp01(0.55 + (0.5 * Y) / Math.max(1, Ym[k])));
+        const tex = (0.94 + 0.06 * Math.min(1.25, Y / 150)) * speckle;
+        const snowR = (178 + 76 * t) * tex, snowG = (192 + 63 * t) * tex, snowB = (218 + 38 * t) * tex;
+        // Rock: the image, darker, cooler and flatter, as rock looks against snow.
+        const grey = Y * 0.78;
+        const rockR = grey + (r - Y) * 0.45, rockG = grey + (g - Y) * 0.45, rockB = grey + (b - Y) * 0.45 + 5;
+        // Forest: dark blue-green, still shaded by the terrain.
+        const shade = 0.7 + 0.3 * clamp01(light);
+        const treeR = (Y * 0.48 + 12) * shade, treeG = (Y * 0.58 + 22) * shade, treeB = (Y * 0.54 + 22) * shade;
+
+        // Winter hardwoods: grey-brown, snow on the ground showing between trunks.
+        const hardR = Y * 0.9 + 55, hardG = Y * 0.88 + 58, hardB = Y * 0.88 + 66;
+        const cover = 1 - smooth(38, 56, slope);
+        const dark = 1 - clamp01(Y / 200);
+        const snow = smooth(0.35, 0.65, cover + 0.35 * (0.5 - dark));
+        const clear = openGround ? 1 - openGround[k] : 1;
+        const forest = tree[k] * clear;
+        const leafless = bare[k] * clear * (1 - tree[k]) * 0.85;
+
+        let br = rockR + (snowR - rockR) * snow, bg = rockG + (snowG - rockG) * snow, bb = rockB + (snowB - rockB) * snow;
+        br += (hardR * shade - br) * leafless; bg += (hardG * shade - bg) * leafless; bb += (hardB * shade - bb) * leafless;
+        out[o] = br + (treeR - br) * forest;
+        out[o + 1] = bg + (treeG - bg) * forest;
+        out[o + 2] = bb + (treeB - bb) * forest;
+        out[o + 3] = 255;
       }
     }
     return out;
@@ -370,7 +582,7 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     };
   }
 
-  return { shadeTile, profile, point, heights, area };
+  return { shadeTile, snowTile, setOpen, profile, point, heights, area };
 }
 
 // One pass of a 3x3 box filter, edges clamped.
@@ -384,6 +596,54 @@ function box3(src, W, H) {
     }
   }
   return out;
+}
+
+// Mean over a (2r+1)² window (edges clamped), via a summed-area table.
+function boxMean(src, size, r) {
+  const S = new Float64Array((size + 1) * (size + 1));
+  for (let j = 0; j < size; j++) {
+    let row = 0;
+    for (let i = 0; i < size; i++) {
+      row += src[j * size + i];
+      S[(j + 1) * (size + 1) + i + 1] = S[j * (size + 1) + i + 1] + row;
+    }
+  }
+  const out = new Float32Array(size * size);
+  for (let j = 0; j < size; j++) {
+    const j0 = Math.max(0, j - r), j1 = Math.min(size, j + r + 1);
+    for (let i = 0; i < size; i++) {
+      const i0 = Math.max(0, i - r), i1 = Math.min(size, i + r + 1);
+      out[j * size + i] = (S[j1 * (size + 1) + i1] - S[j0 * (size + 1) + i1] - S[j1 * (size + 1) + i0] + S[j0 * (size + 1) + i0]) / ((j1 - j0) * (i1 - i0));
+    }
+  }
+  return out;
+}
+
+// Minimum over a (2r+1)² window, separably.
+function minFilter(src, size, r) {
+  const tmp = new Float32Array(size * size), out = new Float32Array(size * size);
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      let m = Infinity;
+      for (let k = Math.max(0, i - r); k <= Math.min(size - 1, i + r); k++) m = Math.min(m, src[j * size + k]);
+      tmp[j * size + i] = m;
+    }
+  }
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      let m = Infinity;
+      for (let k = Math.max(0, j - r); k <= Math.min(size - 1, j + r); k++) m = Math.min(m, tmp[k * size + i]);
+      out[j * size + i] = m;
+    }
+  }
+  return out;
+}
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+// Smoothstep from edge a to edge b (b may be below a, for a falling edge).
+function smooth(a, b, v) {
+  const t = clamp01((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
 }
 
 const lerp2 = (a, b, c, d, fx, fy) => a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;

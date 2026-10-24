@@ -143,7 +143,7 @@ const CELL_Z = 11;
 const intersects = (a, b) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 const inBox = (lng, lat, b) => lng >= b[0] && lng <= b[2] && lat >= b[1] && lat <= b[3];
 
-export function createPisteStore(map, { resorts, nearestConvention, ready, onStatus }) {
+export function createPisteStore(map, { resorts, nearestConvention, ready, onStatus, onChange }) {
   const features = new Map(); // fid -> feature with its full geometry (tiles clip what the map returns)
   const seenOsm = new Set();
   const loadedPacks = new Set();
@@ -169,7 +169,11 @@ export function createPisteStore(map, { resorts, nearestConvention, ready, onSta
       }
     }
     cancelAnimationFrame(pendingFlush);
-    pendingFlush = requestAnimationFrame(() => map.getSource('pistes')?.setData({ type: 'FeatureCollection', features: [...features.values()] }));
+    pendingFlush = requestAnimationFrame(() => {
+      const all = [...features.values()];
+      map.getSource('pistes')?.setData({ type: 'FeatureCollection', features: all });
+      onChange?.(all);
+    });
   }
 
   async function loadPack(r) {
