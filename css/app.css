@@ -149,6 +149,29 @@ ul { padding: 0; list-style: none; }
 .sun-read { gap: 12px; font-size: 13px; }
 .sun-clock { font-family: var(--display); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
 
+.s2bar { width: min(420px, 100%); border-radius: 16px; padding: 10px 12px 12px; }
+.s2-title { display: flex; align-items: center; gap: 6px; margin-right: auto; font-family: var(--display); font-weight: 750; color: var(--accent); }
+.s2-title .i { width: 18px; height: 18px; }
+.s2bar .seg.s2-mode button { padding: 4px 10px; font-size: 13px; }
+.s2-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.s2-row .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.s2-fwd .i { transform: scaleX(-1); }
+.s2-read { flex: 1; min-width: 0; text-align: center; line-height: 1.35; }
+.s2-day { font-family: var(--display); font-weight: 800; font-size: 17px; }
+.s2-read .small { font-size: 12.5px; }
+/* The last DAYS days as a strip, one dot per pass, coloured by cloud over the view. */
+.s2-days { position: relative; height: 18px; margin: 8px 6px 0; border-radius: 9px; background: linear-gradient(var(--line), var(--line)) center / 100% 2px no-repeat; }
+.s2-dot {
+  position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; padding: 0;
+  border: 0; border-radius: 50%; background: #5d6875;
+}
+.s2-dot::after { content: ""; position: absolute; inset: -8px -3px; }
+.s2-dot.clear { background: var(--accent); }
+.s2-dot.part { background: #8a9bb0; }
+.s2-dot.est { opacity: 0.55; }
+.s2-dot.none { width: 8px; height: 8px; margin: -4px 0 0 -4px; background: none; box-shadow: 0 0 0 1.5px #5d6875 inset; }
+.s2-dot.on { box-shadow: 0 0 0 2px var(--glass-solid), 0 0 0 4px #fff; z-index: 1; }
+
 /* ---- Flight: the map gets the whole screen ---- */
 .flight-stop {
   position: fixed; z-index: 4; left: 50%; bottom: calc(var(--bottom) + 30px); transform: translateX(-50%);

@@ -15,6 +15,7 @@ const ATTR = {
   ofm: '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a>',
   osm: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   ski: 'Pistes: <a href="https://openskidata.org">OpenSkiData</a> (ODbL)',
+  s2: `Contains modified <a href="https://dataspace.copernicus.eu">Copernicus Sentinel data</a> ${new Date().getFullYear()}, via <a href="https://element84.com/earth-search/">Earth Search</a>`,
 };
 
 export const BASEMAPS = ['satellite', 'snow', 'winter', 'topo'];
@@ -46,6 +47,8 @@ export function buildStyle(s) {
       ofm: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: `${ATTR.ofm} ${ATTR.osm}` },
       // Satellite imagery with simulated snow, drawn by the terrain worker.
       snow: { type: 'raster', tiles: [shadeUrl('snow', 0)], tileSize: 512, maxzoom: 17, attribution: `${ATTR.esri} ${ATTR.dem}` },
+      // The latest Sentinel-2 passes, read from Element 84's open archive by the worker.
+      s2: { type: 'raster', tiles: [shadeUrl('s2', 0)], tileSize: 512, minzoom: 8, maxzoom: 13, attribution: ATTR.s2 },
       slope: { type: 'raster', tiles: [shadeUrl('slope', s.slopeMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       aspect: { type: 'raster', tiles: [shadeUrl('aspect', s.aspectMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       pistes: { type: 'geojson', data: empty(), attribution: `${ATTR.ski} ${ATTR.osm}`, tolerance: 0.2 },
@@ -73,6 +76,7 @@ export function buildStyle(s) {
       { id: 'w-ice', type: 'fill', source: 'ofm', 'source-layer': 'landcover', filter: ['==', ['get', 'class'], 'ice'], paint: { 'fill-color': '#f6fbff' } },
       { id: 'w-water', type: 'fill', source: 'ofm', 'source-layer': 'water', paint: { 'fill-color': '#9fc0de' } },
       { id: 'w-waterway', type: 'line', source: 'ofm', 'source-layer': 'waterway', minzoom: 11, paint: { 'line-color': '#9fc0de', 'line-width': z([11, 0.5, 15, 1.5]) } },
+      { id: 's2', type: 'raster', source: 's2', layout: { visibility: 'none' }, paint: { 'raster-fade-duration': 200, 'raster-resampling': 'linear' } },
       { id: 'hillshade', type: 'hillshade', source: 'dem-shade', paint: { 'hillshade-method': 'igor', 'hillshade-exaggeration': 0.55, 'hillshade-shadow-color': '#3d4f6b', 'hillshade-highlight-color': '#ffffff', 'hillshade-accent-color': '#5b6d88' } },
       { id: 'w-building', type: 'fill', source: 'ofm', 'source-layer': 'building', minzoom: 14, paint: { 'fill-color': '#c9ced6' } },
       {
@@ -188,6 +192,7 @@ export function applyView(map, s) {
   set('topo', 'visibility', vis(s.basemap === 'topo'));
   set('snow', 'visibility', vis(s.basemap === 'snow'));
   for (const id of WINTER_LAYERS) set(id, 'visibility', vis(s.basemap === 'winter'));
+  set('s2', 'visibility', vis(s.recent));
   set('slope', 'visibility', vis(s.overlay === 'slope'));
   set('aspect', 'visibility', vis(s.overlay === 'aspect'));
   paint('slope', 'raster-opacity', s.slopeOpacity);
@@ -198,7 +203,7 @@ export function applyView(map, s) {
 
   set('peak-label', 'text-field', peakLabel(s.units));
 
-  const dark = s.basemap === 'satellite';
+  const dark = s.basemap === 'satellite' || (s.recent && s.recentMode === 'photo');
   for (const id of ['place-label', 'peak-label']) {
     paint(id, 'text-color', dark ? '#ffffff' : '#1d232b');
     paint(id, 'text-halo-color', dark ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)');
