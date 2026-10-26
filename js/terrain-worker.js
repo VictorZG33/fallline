@@ -12,7 +12,7 @@ async function decode(blob) {
 }
 
 const engine = createEngine({ decode });
-const sentinel = createSentinel({ light: engine.lightTile });
+const sentinel = createSentinel();
 const cancelled = new Set();
 
 self.onmessage = async ({ data: msg }) => {

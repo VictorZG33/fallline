@@ -18,9 +18,10 @@ FATMAP 被 Strava 收购后下线了。滚落线把它最好用的部分做回�
 - **Recent satellite**: real 10 m Sentinel-2 images from the last two months,
   to see this season's snow line and where rock is showing. It picks the
   latest clear day over the view on its own; step through older passes on a
-  timeline coloured by cloud. Snow that the true-colour image shows as flat
-  white is given back its relief from the terrain under the real sun of the
-  pass. "Snow cover" mode shows ESA's snow classification over any base map.
+  timeline coloured by cloud. The image is drawn from the raw red, green and
+  blue bands with a curve that keeps snow's sun and shade, where ESA's
+  ready-made true-colour image turns all snow flat white. "Snow cover" mode
+  shows ESA's snow classification, sharpened to 10 m, over any base map.
 - **Slope-angle shading** in 5° bands from 20° up, on the usual avalanche-terrain
   breaks (30°, 35°, 45°). Tap a band in the legend to hide it, for example to
   show only 30° and steeper.
@@ -57,7 +58,7 @@ No build step: plain ES modules served as static files.
 | Runs and lifts | [OpenSkiData](https://openskidata.org) packs in `data/packs/` (built by `tools/build-data.mjs`), else live from the [Overpass API](https://overpass-api.de) |
 | Contours | [maplibre-contour](https://github.com/onthegomap/maplibre-contour), from the same elevation tiles |
 | Imagery | Esri World Imagery; OpenTopoMap; [OpenFreeMap](https://openfreemap.org) vector tiles for the winter map and labels |
-| Recent satellite | `js/recent.js` finds passes with [Earth Search](https://element84.com/earth-search/) (Element 84's STAC API); `js/sentinel.js`, in the worker, reads the true-colour and scene-classification images straight from the open [Sentinel-2 COGs on AWS](https://registry.opendata.aws/sentinel-2-l2a-cogs/) with range requests. No keys |
+| Recent satellite | `js/recent.js` finds passes with [Earth Search](https://element84.com/earth-search/) (Element 84's STAC API); `js/sentinel.js`, in the worker, reads the red, green, blue and scene-classification images straight from the open [Sentinel-2 COGs on AWS](https://registry.opendata.aws/sentinel-2-l2a-cogs/) with range requests. No keys |
 | Winter satellite | `snowTile` in `js/terrain.js`: Esri tiles plus the DEM gradient; forest is found in the image (green, not bright, with crown shadows), leafless hardwoods by colour, and runs from the piste data |
 | Offline | `sw.js` caches the app, every tile you have seen (up to 6,000), and areas you save |
 

@@ -28,7 +28,7 @@ function startLocal() {
       return ctx.getImageData(0, 0, bmp.width, bmp.height);
     },
   });
-  localSentinel = createSentinel({ light: local.lightTile });
+  localSentinel = createSentinel();
   if (lastOpen) local.setOpen(lastOpen);
   if (lastScene) localSentinel.setScene(lastScene);
   for (const [id, p] of pending) {

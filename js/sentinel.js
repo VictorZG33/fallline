@@ -3,18 +3,12 @@
 // tiles a map tile needs are fetched, with HTTP range requests, and inflated
 // here. DOM-free: it runs in a terrain worker.
 
-import { sunPosition } from './sun.js';
-
 const D2R = Math.PI / 180;
 const SIZE = 512;
-const smooth = (a, b, v) => {
-  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 // ---- A small cloud-optimised GeoTIFF reader ------------------------------------
-// Enough for these files: classic TIFF, tiled, 8-bit pixel-interleaved samples,
-// deflate with or without the horizontal predictor.
+// Enough for these files: classic TIFF, tiled, 8- or 16-bit pixel-interleaved
+// samples, deflate with or without the horizontal predictor.
 
 function parseHeader(buf) {
   const dv = new DataView(buf);
@@ -54,11 +48,12 @@ function parseHeader(buf) {
     levels.push({
       width: tags[256], height: tags[257], tw: tags[322], th: tags[323],
       offsets: [].concat(tags[324]), counts: [].concat(tags[325]),
-      samples: tags[277] || 1, compression: tags[259] || 1, predictor: tags[317] || 1,
+      samples: tags[277] || 1, bits: [].concat(tags[258] || 8)[0],
+      compression: tags[259] || 1, predictor: tags[317] || 1,
     });
     ifd = dv.getUint32(ifd + 2 + n * 12, le);
   }
-  return { levels, geo, need };
+  return { levels, geo, le, need };
 }
 
 async function inflate(bytes) {
@@ -114,15 +109,39 @@ function tileUtm(z, x, y, epsg) {
   return { E, N, ge, gn };
 }
 
+// ---- Colour ---------------------------------------------------------------------------
+
+// The red, green and blue bands are surface reflectance x 10000 (Element 84's
+// COGs already have the offset taken out). ESA's ready-made true-colour image
+// maps 0-0.255 straight to 0-255, so all snow, sunlit or shaded, comes out
+// the same flat white. This curve keeps that slope in the shadows, so forest
+// and rock look the same, and rolls off to reach white only at 0.85, fresh
+// snow in full sun, so snow keeps its relief: it is ~0.3 in shade.
+const KNEE = 0.25, WHITE = 0.85;
+const curve = (r) => (r * (1 + KNEE)) / (r + KNEE);
+const tone = (r) => (r <= 0 ? 0 : curve(r) / curve(WHITE));
+const SATURATION = 1.1;
+// The bands are 2 bytes a pixel and three of them: a map tile up to twice as
+// coarse as the 10 m pixels (zoom 12, far off in a tilted view) reads the
+// 20 m overview, a quarter of the data, and looks no different.
+const BAND_SLACK = 2.2;
+
+// Catmull-Rom weights, for drawing 10 m pixels on a finer map tile.
+function cubic(t, w) {
+  const t2 = t * t, t3 = t2 * t;
+  w[0] = (-t3 + 2 * t2 - t) / 2;
+  w[1] = (3 * t3 - 5 * t2 + 2) / 2;
+  w[2] = (-3 * t3 + 4 * t2 + t) / 2;
+  w[3] = (t3 - t2) / 2;
+}
+
 // ---- The reader --------------------------------------------------------------------
 
-// `light(z, x, y, azimuth, altitude)` gives the terrain's relative lighting
-// for a tile (see lightTile in terrain.js), to put relief back into snow.
-export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null } = {}) {
+export function createSentinel({ fetchFn = (u, o) => fetch(u, o) } = {}) {
   const headers = new Map(); // url -> Promise<header>
-  const tiles = new Map();   // key -> { p: Promise<Uint8Array|null>, bytes }
+  const tiles = new Map();   // key -> { p: Promise<typed array|null>, bytes }
   let tileBytes = 0;
-  const TILE_BUDGET = 64 * 1024 * 1024;
+  const TILE_BUDGET = 96 * 1024 * 1024;
 
   // A byte range, tried twice: a hole in the image would stay for good.
   async function range(url, from, to, retry = true) {
@@ -154,8 +173,9 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
     return p;
   }
 
-  // One decoded image tile: tw x th x samples bytes, or null where the file has none.
-  function tile(url, L, level, tx, ty) {
+  // One decoded image tile, tw x th x samples values (Uint8Array or
+  // Uint16Array), or null where the file has none.
+  function tile(url, h, level, tx, ty) {
     const key = `${url}#${level}/${tx}/${ty}`;
     const hit = tiles.get(key);
     if (hit) {
@@ -163,23 +183,29 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
       tiles.set(key, hit);
       return hit.p;
     }
+    const L = h.levels[level];
     const entry = { bytes: 0 };
     entry.p = (async () => {
       const i = ty * Math.ceil(L.width / L.tw) + tx;
       const off = L.offsets[i], len = L.counts[i];
       if (!len) return null;
-      let data = new Uint8Array(await range(url, off, off + len - 1));
-      if (L.compression === 8 || L.compression === 32946) data = await inflate(data);
+      let bytes = new Uint8Array(await range(url, off, off + len - 1));
+      if (L.compression === 8 || L.compression === 32946) bytes = await inflate(bytes);
       else if (L.compression !== 1) throw new Error(`TIFF compression ${L.compression} not supported`);
+      let data = bytes;
+      if (L.bits === 16) {
+        if (!h.le) for (let k = 0; k + 1 < bytes.length; k += 2) [bytes[k], bytes[k + 1]] = [bytes[k + 1], bytes[k]];
+        data = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1);
+      }
       if (L.predictor === 2) {
-        const row = L.tw * L.samples;
+        const row = L.tw * L.samples, mask = L.bits === 16 ? 0xffff : 0xff;
         for (let r = 0; r < L.th; r++) {
           const o = r * row;
-          for (let k = o + L.samples; k < o + row; k++) data[k] = (data[k] + data[k - L.samples]) & 255;
+          for (let k = o + L.samples; k < o + row; k++) data[k] = (data[k] + data[k - L.samples]) & mask;
         }
       }
-      entry.bytes = data.length;
-      tileBytes += data.length;
+      entry.bytes = data.byteLength;
+      tileBytes += data.byteLength;
       for (const [k, old] of tiles) {
         if (tileBytes <= TILE_BUDGET) break;
         if (old === entry || !old.bytes) continue;
@@ -193,39 +219,41 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
     return entry.p;
   }
 
-  // The image tiles of one overview level that cover a window of pixels.
-  // at(c, r) returns the byte offset of a pixel in `w.data` (set as a side
+  // The image tiles that cover a window of pixels of one overview level, in
+  // one or more files laid out alike (the bands of a granule). at(c, r)
+  // returns the offset of a pixel in each of `w.data[0..]` (set as a side
   // effect, to keep the per-pixel loops free of allocation), or -1.
-  async function window(url, h, level, c0, r0, c1, r1) {
-    const L = h.levels[level];
+  async function window(urls, hs, level, c0, r0, c1, r1) {
+    const L = hs[0].levels[level];
     c0 = Math.max(0, Math.floor(c0)); r0 = Math.max(0, Math.floor(r0));
     c1 = Math.min(L.width - 1, Math.ceil(c1)); r1 = Math.min(L.height - 1, Math.ceil(r1));
     if (c0 > c1 || r0 > r1) return null;
     const { tw, th, samples } = L;
     const tx0 = Math.floor(c0 / tw), tx1 = Math.floor(c1 / tw), ty0 = Math.floor(r0 / th), ty1 = Math.floor(r1 / th);
     const nx = tx1 - tx0 + 1;
-    const jobs = [];
-    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) jobs.push(tile(url, L, level, tx, ty).catch(() => null));
-    const list = await Promise.all(jobs);
-    if (!list.some(Boolean)) return null;
+    const coords = [];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) coords.push([tx, ty]);
+    const lists = await Promise.all(urls.map((u, n) => Promise.all(coords.map(([tx, ty]) => tile(u, hs[n], level, tx, ty).catch(() => null)))));
+    const sets = coords.map((_, i) => (lists.every((l) => l[i]) ? lists.map((l) => l[i]) : null));
+    if (!sets.some(Boolean)) return null;
     const w = {
       data: null,
       at(c, r) {
         if (c < c0 || c > c1 || r < r0 || r > r1) return -1;
         const tx = (c / tw) | 0, ty = (r / th) | 0;
-        const t = list[(ty - ty0) * nx + (tx - tx0)];
-        if (!t) return -1;
-        w.data = t;
+        const set = sets[(ty - ty0) * nx + (tx - tx0)];
+        if (!set) return -1;
+        w.data = set;
         return ((r - ty * th) * tw + (c - tx * tw)) * samples;
       },
     };
     return w;
   }
 
-  // The coarsest overview whose pixels are still no bigger than `mpp` x 1.5.
-  function pickLevel(h, mpp) {
+  // The coarsest overview whose pixels are no bigger than `mpp` x `slack`.
+  function pickLevel(h, mpp, slack = 1.5) {
     const w0 = h.levels[0].width;
-    for (let l = h.levels.length - 1; l > 0; l--) if (h.geo.res * (w0 / h.levels[l].width) <= mpp * 1.5) return l;
+    for (let l = h.levels.length - 1; l > 0; l--) if (h.geo.res * (w0 / h.levels[l].width) <= mpp * slack) return l;
     return 0;
   }
 
@@ -238,11 +266,13 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
     if (scenes.size > 16) scenes.delete(scenes.keys().next().value);
   }
 
-  // The pixels of one file under a map tile, at the overview that suits it.
-  async function cover(url, g, mpp) {
-    const h = await header(url).catch(() => null);
-    if (!h) return null;
-    const level = pickLevel(h, mpp);
+  // The pixels of some files under a map tile, at the overview that suits it.
+  async function cover(urls, g, mpp, slack) {
+    const hs = await Promise.all(urls.map((u) => header(u).catch(() => null)));
+    if (!hs.every(Boolean)) return null;
+    const h = hs[0];
+    const level = pickLevel(h, mpp, slack);
+    if (hs.some((o) => o.levels[level]?.width !== h.levels[level].width || o.levels[level].tw !== h.levels[level].tw)) return null;
     const res = h.geo.res * (h.levels[0].width / h.levels[level].width);
     const { x0, y0 } = h.geo;
     let cmin = Infinity, cmax = -Infinity, rmin = Infinity, rmax = -Infinity;
@@ -253,15 +283,15 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
       if (r < rmin) rmin = r;
       if (r > rmax) rmax = r;
     }
-    const w = await window(url, h, level, cmin - 1, rmin - 1, cmax + 1, rmax + 1);
+    const w = await window(urls, hs, level, cmin - 2, rmin - 2, cmax + 2, rmax + 2);
     return w && { w, res, x0, y0 };
   }
 
   // A 512 px Web Mercator tile of the chosen date, RGBA. In photo mode it is
-  // the true-colour image; in snow mode, the scene classification (with the
-  // image at 20 m to find snow in shadow): snow in ice blue, cloud hatched,
-  // snow-free ground tinted brown (over the winter base map, whose snow is
-  // simulated), and the base map left clear only where there is no image.
+  // the red, green and blue bands through `tone`; in snow mode, the scene
+  // classification, sharpened from 20 m to 10 m with the green band: snow in
+  // ice blue, cloud hatched, snow-free ground tinted brown (over the winter
+  // base map, whose snow is simulated), clear only where there is no image.
   async function render(z, x, y, version) {
     const out = new Uint8ClampedArray(SIZE * SIZE * 4);
     const s = scenes.get(version);
@@ -271,88 +301,83 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
     const mpp = (2 * Math.PI * 6378137 * Math.cos(((north + south) / 2) * D2R)) / (SIZE * 2 ** z);
     const snowMode = s.mode === 'snow';
     const filled = new Uint8Array(SIZE * SIZE);
-    // Photo mode: where the classification doesn't say cloud, for the relief below.
-    const snowy = snowMode ? null : new Float32Array(SIZE * SIZE);
-    let left = SIZE * SIZE, anySnow = false;
+    let left = SIZE * SIZE;
     const grids = new Map();
+    const wx = new Float64Array(4), wy = new Float64Array(4);
     for (const item of s.items) {
       if (!left) break;
       const [bw, bs, be, bn] = item.bbox;
       if (be < west || bw > east || bn < south || bs > north) continue;
       if (!grids.has(item.epsg)) grids.set(item.epsg, tileUtm(z, x, y, item.epsg));
       const g = grids.get(item.epsg), { E, N } = g;
-      const [img, scl] = await Promise.all([cover(item.tci, g, snowMode ? Math.max(mpp, 14) : mpp), cover(item.scl, g, mpp)]);
-      if (snowMode ? !scl : !img) continue;
-      for (let k = 0; k < SIZE * SIZE; k++) {
-        if (filled[k]) continue;
-        let cls = 0;
-        if (scl) {
-          const o = scl.w.at(Math.floor((E[k] - scl.x0) / scl.res), Math.floor((scl.y0 - N[k]) / scl.res));
-          if (o >= 0) cls = scl.w.data[o];
-        }
-        const q = k * 4;
-        if (snowMode) {
+
+      if (snowMode) {
+        const [scl, grn] = await Promise.all([cover([item.scl], g, mpp), cover([item.green], g, mpp, BAND_SLACK)]);
+        if (!scl) continue;
+        for (let k = 0; k < SIZE * SIZE; k++) {
+          if (filled[k]) continue;
+          const sc = Math.floor((E[k] - scl.x0) / scl.res), sr = Math.floor((scl.y0 - N[k]) / scl.res);
+          const o = scl.w.at(sc, sr);
+          if (o < 0) continue;
+          let cls = scl.w.data[0][o];
           if (!cls) continue; // no data
-          if (img && shaded(cls)) {
-            const o = img.w.at(Math.floor((E[k] - img.x0) / img.res), Math.floor((img.y0 - N[k]) / img.res));
-            if (o >= 0 && whiteish(img.w.data, o)) cls = 11;
+          if (grn && (cls < 8 || cls > 10)) {
+            const og = grn.w.at(Math.floor((E[k] - grn.x0) / grn.res), Math.floor((grn.y0 - N[k]) / grn.res));
+            if (og >= 0) cls = refine(cls, grn.w.data[0][og] / 10000, scl.w, sc, sr);
           }
           filled[k] = 1;
           left--;
-          sclColor(cls, (k & 511) + (k >> 9), out, q);
-          continue;
+          sclColor(cls, (k & 511) + (k >> 9), out, k * 4);
         }
-        // Bilinear over the valid neighbours (black is no data at granule edges).
-        const { w, res, x0, y0 } = img;
+        continue;
+      }
+
+      const img = await cover([item.red, item.green, item.blue], g, mpp, BAND_SLACK);
+      if (!img) continue;
+      const { w, res, x0, y0 } = img;
+      // Finer than the image: bicubic, so 10 m pixels don't show as diamonds.
+      const smooth = res > mpp * 1.2;
+      const taps = smooth ? 4 : 2, back = smooth ? 1 : 0;
+      for (let k = 0; k < SIZE * SIZE; k++) {
+        if (filled[k]) continue;
         const fc = (E[k] - x0) / res - 0.5, fr = (y0 - N[k]) / res - 0.5;
         const c = Math.floor(fc), r = Math.floor(fr), fx = fc - c, fy = fr - r;
-        let R = 0, G = 0, B = 0, W = 0;
-        for (let n = 0; n < 4; n++) {
-          const dc = n & 1, dr = n >> 1;
-          const o = w.at(c + dc, r + dr);
-          if (o < 0) continue;
-          const d = w.data;
-          if (!d[o] && !d[o + 1] && !d[o + 2]) continue;
-          const wt = (dc ? fx : 1 - fx) * (dr ? fy : 1 - fy) + 1e-6;
-          R += d[o] * wt; G += d[o + 1] * wt; B += d[o + 2] * wt; W += wt;
+        if (smooth) {
+          cubic(fx, wx);
+          cubic(fy, wy);
+        } else {
+          wx[0] = 1 - fx; wx[1] = fx;
+          wy[0] = 1 - fy; wy[1] = fy;
         }
-        if (!W) continue;
+        // Weighted over the taps that have data (0 is no data at granule edges).
+        let R = 0, G = 0, B = 0, W = 0;
+        for (let j = 0; j < taps; j++) {
+          for (let i = 0; i < taps; i++) {
+            const o = w.at(c + i - back, r + j - back);
+            if (o < 0) continue;
+            const d = w.data, rv = d[0][o], gv = d[1][o], bv = d[2][o];
+            if (!rv && !gv && !bv) continue;
+            const wt = wx[i] * wy[j];
+            R += rv * wt; G += gv * wt; B += bv * wt; W += wt;
+          }
+        }
+        if (W < 0.5) continue;
+        const tr = tone(R / W / 10000), tg = tone(G / W / 10000), tb = tone(B / W / 10000);
+        const m = (tr + tg + tb) / 3;
+        const q = k * 4;
+        out[q] = 255 * (m + (tr - m) * SATURATION);
+        out[q + 1] = 255 * (m + (tg - m) * SATURATION);
+        out[q + 2] = 255 * (m + (tb - m) * SATURATION);
+        out[q + 3] = 255;
         filled[k] = 1;
         left--;
-        out[q] = R / W; out[q + 1] = G / W; out[q + 2] = B / W; out[q + 3] = 255;
-        if (cls === 11 || (shaded(cls) && whiteish(out, q))) anySnow = true;
-        if (cls && (cls < 8 || cls > 10)) snowy[k] = 1;
       }
     }
-    if (anySnow && light) await relief(out, snowy, z, x, y, mpp, s.items[0].time, (north + south) / 2, (west + east) / 2);
     return out;
   }
 
-  // The true-colour image is stretched for land and saturates at about 20%
-  // reflectance, so snow comes out flat white, in sun and in shade alike.
-  // Where it is saturated, and not cloud, shade it by the terrain under the
-  // sun of the pass: white in sun, pale blue on the slopes facing away.
-  // (The classification is 20 m, so its edge is feathered.)
-  async function relief(out, snowy, z, x, y, mpp, time, lat, lon) {
-    const sun = sunPosition(new Date(time), lat, lon);
-    if (sun.altitude <= 0) return;
-    const lit = await light(z, x, y, sun.azimuth, sun.altitude).catch(() => null);
-    if (!lit) return;
-    const mask = blur(snowy, Math.max(1, Math.min(4, Math.round(15 / mpp))));
-    for (let k = 0; k < SIZE * SIZE; k++) {
-      if (!mask[k]) continue;
-      const q = k * 4;
-      const sat = smooth(222, 252, Math.min(out[q], out[q + 1], out[q + 2])) * mask[k];
-      if (!sat) continue;
-      const t = Math.min(1, Math.max(0, 0.62 + 0.38 * lit[k]));
-      out[q] += (178 + 77 * t - out[q]) * sat;
-      out[q + 1] += (192 + 63 * t - out[q + 1]) * sat;
-      out[q + 2] += (218 + 37 * t - out[q + 2]) * sat;
-    }
-  }
-
   // One file's pixels at a list of [lon, lat] points, nearest, from the
-  // overview that suits `mpp`: at(k) is a byte offset into `w.data`, or -1.
+  // overview that suits `mpp`: at(k) is an offset into `w.data[0]`, or -1.
   async function points(url, epsg, pts, mpp) {
     const h = await header(url).catch(() => null);
     if (!h) return null;
@@ -367,28 +392,28 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
       cr[k * 2] = c; cr[k * 2 + 1] = r;
       cmin = Math.min(cmin, c); cmax = Math.max(cmax, c); rmin = Math.min(rmin, r); rmax = Math.max(rmax, r);
     });
-    const w = await window(url, h, level, cmin, rmin, cmax, rmax);
+    const w = await window([url], [h], level, cmin, rmin, cmax, rmax);
     return w && { w, at: (k) => w.at(Math.floor(cr[k * 2]), Math.floor(cr[k * 2 + 1])) };
   }
 
   // Shares of cloud, snow and missing data over a bounding box, from the scene
   // classification read at about 160 m. Snow only with `withSnow`, which also
-  // reads the image, to count snow in shadow.
+  // reads the green band, to count snow in shadow.
   async function stats(items, bbox, withSnow = false) {
     const n = 48, pts = [];
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) pts.push([bbox[0] + ((i + 0.5) / n) * (bbox[2] - bbox[0]), bbox[3] - ((j + 0.5) / n) * (bbox[3] - bbox[1])]);
     const cls = new Uint8Array(pts.length);
     for (const item of items) {
-      const [scl, img] = await Promise.all([points(item.scl, item.epsg, pts, 107), withSnow ? points(item.tci, item.epsg, pts, 107) : null]);
+      const [scl, grn] = await Promise.all([points(item.scl, item.epsg, pts, 107), withSnow ? points(item.green, item.epsg, pts, 107) : null]);
       if (!scl) continue;
       for (let k = 0; k < pts.length; k++) {
         if (cls[k]) continue;
         const o = scl.at(k);
         if (o < 0) continue;
-        cls[k] = scl.w.data[o];
-        if (img && shaded(cls[k])) {
-          const oi = img.at(k);
-          if (oi >= 0 && whiteish(img.w.data, oi)) cls[k] = 11;
+        cls[k] = scl.w.data[0][o];
+        if (grn && shaded(cls[k])) {
+          const og = grn.at(k);
+          if (og >= 0 && grn.w.data[0][og] / 10000 >= SHADE_SNOW) cls[k] = 11;
         }
       }
     }
@@ -405,31 +430,26 @@ export function createSentinel({ fetchFn = (u, o) => fetch(u, o), light = null }
   return { setScene, render, stats };
 }
 
-// Box blur of a SIZE x SIZE field, radius r, rows then columns.
-function blur(src, r) {
-  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
-  const n = 2 * r + 1;
-  for (let pass = 0; pass < 2; pass++) {
-    const a = pass ? tmp : src, b = pass ? out : tmp;
-    const step = pass ? SIZE : 1, line = pass ? 1 : SIZE;
-    for (let l = 0; l < SIZE; l++) {
-      const base = l * line;
-      let sum = 0;
-      for (let i = -r; i <= r; i++) sum += a[base + Math.min(SIZE - 1, Math.max(0, i)) * step];
-      for (let i = 0; i < SIZE; i++) {
-        b[base + i * step] = sum / n;
-        sum += a[base + Math.min(SIZE - 1, i + r + 1) * step] - a[base + Math.max(0, i - r) * step];
-      }
+// Sen2Cor doesn't look for snow in terrain shadow: it calls it dark area (2),
+// cloud shadow (3), unclassified (7) or saturated (1). In the green band snow
+// in shade is still above ~0.12, where rock and forest in shade are below 0.08.
+const shaded = (cls) => cls === 1 || cls === 2 || cls === 3 || cls === 7;
+const SHADE_SNOW = 0.12;
+
+// A 20 m class, sharpened with the 10 m green reflectance `g` under it: dark
+// trees and rock inside a snow pixel aren't snow, bright snow at the edge of
+// a snow pixel's neighbour is.
+function refine(cls, g, sclWindow, sc, sr) {
+  if (cls === 11) return g >= 0.09 ? 11 : 5;
+  if (shaded(cls)) return g >= SHADE_SNOW ? 11 : cls;
+  if (g >= 0.35 && (cls === 4 || cls === 5)) {
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const o = sclWindow.at(sc + dc, sr + dr);
+      if (o >= 0 && sclWindow.data[0][o] === 11) return 11;
     }
   }
-  return out;
+  return cls;
 }
-
-// Sen2Cor doesn't look for snow in terrain shadow: it calls it dark area (2),
-// cloud shadow (3), unclassified (7) or saturated (1). The true-colour image
-// still shows it bright and neutral to blue, where rock in shade is dark.
-const shaded = (cls) => cls === 1 || cls === 2 || cls === 3 || cls === 7;
-const whiteish = (d, o) => d[o] + d[o + 1] + d[o + 2] > 390 && d[o + 2] >= d[o] - 8;
 
 // Scene classification classes: 6 water, 8 and 9 cloud, 10 thin cirrus,
 // 11 snow or ice; the rest is ground without snow.

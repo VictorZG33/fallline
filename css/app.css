@@ -159,6 +159,7 @@ ul { padding: 0; list-style: none; }
 .s2-read { flex: 1; min-width: 0; text-align: center; line-height: 1.35; }
 .s2-day { font-family: var(--display); font-weight: 800; font-size: 17px; }
 .s2-read .small { font-size: 12.5px; }
+.s2-read .warn { color: #ffd27a; }
 /* The last DAYS days as a strip, one dot per pass, coloured by cloud over the view. */
 .s2-days { position: relative; height: 18px; margin: 8px 6px 0; border-radius: 9px; background: linear-gradient(var(--line), var(--line)) center / 100% 2px no-repeat; }
 .s2-dot {
