@@ -40,6 +40,16 @@ lift lines come from `setOpen` (sent by `sendOpenGround` in `js/app.js` whenever
 the piste data changes) and are always kept clear. Tune it by eye at Stowe, Big
 Sky, Jackson Hole and Chamonix: forest types and imagery seasons differ a lot.
 
+Recent satellite (Sentinel-2): `js/recent.js` searches Earth Search for passes
+over the view (60 days, `fields` trimmed to id/bbox/date/cloud/EPSG; COG URLs
+are built from the id), groups them by local day and picks the newest day with
+under 25% cloud over the view, from the scene classification (SCL) read at
+160 m. `js/sentinel.js` runs in the last worker only (one image tile serves
+many map tiles): it reads TCI and SCL tiles with range requests, inflates them
+with `DecompressionStream`, maps pixels through UTM, and in photo mode shades
+saturated non-cloud pixels with `lightTile` under the sun of the pass. Check it
+at Chamonix (`#12.6/45.885/6.93/150/60`), where TCI saturates on snow.
+
 Run stats (`analyze` in `js/info.js`) are all measured along the line: average
 pitch is drop over length, steepest is the worst 30 m, and the profile is coloured
 by that same pitch. `trail()` in `js/pistes.js` joins same-named OSM sections that

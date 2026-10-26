@@ -449,6 +449,34 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     return out;
   }
 
+  // How brightly a sun at (azimuth, altitude) lights each pixel of a tile,
+  // relative to flat ground: 1 on the flat, below 0 on slopes facing away.
+  // Gives Sentinel-2 snow back the relief its true-colour image loses where
+  // it saturates.
+  async function lightTile(z, x, y, azimuth, altitude) {
+    const size = DEM_SIZE;
+    const gr = await cachedGradients(z, x, y, size, 12);
+    if (!gr) return null;
+    const { s, nx0, ny0, W, H, gx, gy } = gr;
+    const az = azimuth * D2R, alt = Math.max(2, altitude) * D2R;
+    const sx = Math.sin(az) * Math.cos(alt), sy = Math.cos(az) * Math.cos(alt), sz = Math.sin(alt);
+    const out = new Float32Array(size * size);
+    for (let j = 0; j < size; j++) {
+      const v = Math.min(H - 1, Math.max(0, (y * size + j + 0.5) / s - 0.5 - ny0));
+      const y0 = Math.min(H - 2, Math.floor(v)), fy = v - y0;
+      for (let i = 0; i < size; i++) {
+        const u = Math.min(W - 1, Math.max(0, (x * size + i + 0.5) / s - 0.5 - nx0));
+        const x0 = Math.min(W - 2, Math.floor(u)), fx = u - x0;
+        const p = y0 * W + x0;
+        const dzdx = lerp2(gx[p], gx[p + 1], gx[p + W], gx[p + W + 1], fx, fy);
+        const dzdy = lerp2(gy[p], gy[p + 1], gy[p + W], gy[p + W + 1], fx, fy);
+        const nl = Math.sqrt(dzdx * dzdx + dzdy * dzdy + 1);
+        out[j * size + i] = (-dzdx * sx + dzdy * sy + sz) / nl / sz;
+      }
+    }
+    return out;
+  }
+
   // Loads what's needed to read elevation at many points, then returns a
   // synchronous reader: (lon, lat) -> { ele, slope, aspect } or null.
   async function reader(points, zMax = PROFILE_ZOOM) {
@@ -582,7 +610,7 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     };
   }
 
-  return { shadeTile, snowTile, setOpen, profile, point, heights, area };
+  return { shadeTile, snowTile, lightTile, setOpen, profile, point, heights, area };
 }
 
 // One pass of a 3x3 box filter, edges clamped.

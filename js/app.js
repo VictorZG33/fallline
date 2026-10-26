@@ -5,6 +5,7 @@ import { buildStyle, applyView, setMasks, addContours, CLICKABLE } from './style
 import { SLOPE_BANDS, ASPECTS, slopeColor, aspectColor } from './terrain.js';
 import { createPisteStore } from './pistes.js';
 import { createInfo } from './info.js';
+import { createRecent } from './recent.js';
 import { parseGpx, trackStore } from './gpx.js';
 import { sunPosition, sunTimes } from './sun.js';
 import { t, setLang, defaultLang, translatePage, getLang } from './i18n.js';
@@ -19,7 +20,7 @@ const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(
 const DEFAULTS = {
   basemap: 'snow', overlay: 'slope', slopeMask: 0b1111111, aspectMask: 0b11111111,
   slopeOpacity: 0.6, aspectOpacity: 0.6, exaggeration: 1, pistes: true, labels: true, contours: true,
-  units: null, lang: null,
+  recent: false, recentMode: 'photo', units: null, lang: null,
 };
 function load(key, fallback) {
   try {
@@ -277,6 +278,8 @@ function syncPanel() {
   });
   document.querySelectorAll('[data-toggle]').forEach((el) => (el.checked = !!settings[el.dataset.toggle]));
   $('#snow-note').hidden = settings.basemap !== 'snow';
+  $('#recent-note').hidden = !settings.recent;
+  $('#toggle-recent').checked = settings.recent;
   const op = $('#opacity');
   op.value = settings.overlay === 'aspect' ? settings.aspectOpacity : settings.slopeOpacity;
   op.disabled = settings.overlay === 'none';
@@ -296,6 +299,7 @@ function commit({ masks = false, relabel = false } = {}) {
     drawTracks();
     if (!sheets.search.hidden) renderSearch();
     updateSun();
+    recent.render();
   }
 }
 
@@ -380,6 +384,15 @@ $('#sun-now').addEventListener('click', () => {
   updateSun();
 });
 map.on('moveend', updateSun);
+
+// ---- Recent satellite (Sentinel-2) ------------------------------------------------------
+
+// Until the map has loaded there is no style to change; the load handler commits.
+let mapLoaded = false;
+const recent = createRecent({ map, settings, onChange: () => mapLoaded && commit() });
+$('#toggle-recent').addEventListener('change', (e) => recent.setOn(e.target.checked));
+$('#s2-close').addEventListener('click', () => recent.setOn(false));
+if (settings.recent) recent.setOn(true);
 
 // ---- Search ------------------------------------------------------------------------------
 
@@ -564,6 +577,7 @@ window.addEventListener('online', () => showStatus(''));
 map.on('load', async () => {
   // Start with the attribution folded away; it opens from its (i) button.
   document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+  mapLoaded = true;
   commit();
   pistes.update();
   tracks = await trackStore.all();

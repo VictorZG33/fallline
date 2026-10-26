@@ -61,6 +61,25 @@
       <span id="sun-desc" class="muted"></span>
     </div>
   </div>
+  <div id="s2bar" class="s2bar glass" hidden>
+    <div class="sun-row">
+      <strong class="s2-title"><svg class="i" aria-hidden="true"><use href="#i-sat"/></svg><span data-i18n="s2.title">Sentinel-2</span></strong>
+      <div class="seg compact s2-mode" role="radiogroup">
+        <button type="button" role="radio" data-mode="photo" data-i18n="s2.photo">Photo</button>
+        <button type="button" role="radio" data-mode="snow" data-i18n="s2.snow">Snow cover</button>
+      </div>
+      <button id="s2-close" type="button" class="icon-btn" data-i18n-label="a11y.close"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="s2-row">
+      <button id="s2-prev" type="button" class="icon-btn" data-i18n-label="s2.older"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg></button>
+      <div class="s2-read">
+        <div><strong id="s2-day" class="s2-day"></strong> <span id="s2-ago" class="muted"></span></div>
+        <div id="s2-meta" class="muted small"></div>
+      </div>
+      <button id="s2-next" type="button" class="icon-btn s2-fwd" data-i18n-label="s2.newer"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg></button>
+    </div>
+    <div id="s2-days" class="s2-days"></div>
+  </div>
 </div>
 
 <button id="flight-stop" class="flight-stop glass" type="button"><span class="flight-dot" aria-hidden="true"></span><span data-i18n="fly.stop">Tap to stop</span></button>
@@ -109,7 +128,9 @@
     <label class="toggle"><span data-i18n="layers.contours">Contours</span><input type="checkbox" data-toggle="contours"><i></i></label>
     <label class="toggle"><span data-i18n="layers.labels">Place names</span><input type="checkbox" data-toggle="labels"><i></i></label>
     <label class="toggle"><span data-i18n="layers.sun">Sun &amp; shade</span><input type="checkbox" id="toggle-sun"><i></i></label>
+    <label class="toggle"><span><span data-i18n="layers.recent">Recent satellite</span> <small class="muted">Sentinel-2</small></span><input type="checkbox" id="toggle-recent"><i></i></label>
   </div>
+  <p id="recent-note" class="muted small basemap-note" data-i18n="s2.note" hidden></p>
 
   <h3 data-i18n="layers.exaggeration">Vertical exaggeration</h3>
   <div class="seg" role="radiogroup" data-setting="exaggeration">
@@ -168,6 +189,8 @@
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v4.5h16V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 15v4.5h16V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-sat" viewBox="0 0 24 24"><path d="m9.5 9.5 5 5M12 12l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="2.6" y="6.4" width="8" height="4" rx="1" transform="rotate(-45 6.6 8.4)" fill="currentColor"/><rect x="13.4" y="17.2" width="8" height="4" rx="1" transform="rotate(-45 17.4 19.2)" fill="currentColor"/><path d="M15 3.5a5.5 5.5 0 0 1 5.5 5.5M15 6.5A2.5 2.5 0 0 1 17.5 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m14.5 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="#0d1015"/></symbol>
 </svg>
 

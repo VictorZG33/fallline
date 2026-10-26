@@ -1,14 +1,17 @@
 // Main-thread side of the terrain engine: a request/reply wrapper around the
-// workers, the `fl-shade://` MapLibre protocol for slope, aspect and winter
-// satellite tiles, and a main-thread fallback for browsers whose workers can't
-// draw to a canvas.
+// workers, the `fl-shade://` MapLibre protocol for slope, aspect, winter
+// satellite and Sentinel-2 tiles, and a main-thread fallback for browsers whose
+// workers can't draw to a canvas.
 import { createEngine } from './terrain.js';
+import { createSentinel } from './sentinel.js';
 
 let nextId = 1;
 const pending = new Map();
 let workers = [];
 let local = null;
+let localSentinel = null;
 let lastOpen = null;
+let lastScene = null;
 // Two workers where there are cores to spare: the winter satellite map makes
 // every visible tile a fair amount of work.
 const POOL = (navigator.hardwareConcurrency || 2) >= 4 ? 2 : 1;
@@ -25,7 +28,9 @@ function startLocal() {
       return ctx.getImageData(0, 0, bmp.width, bmp.height);
     },
   });
+  localSentinel = createSentinel({ light: local.lightTile });
   if (lastOpen) local.setOpen(lastOpen);
+  if (lastScene) localSentinel.setScene(lastScene);
   for (const [id, p] of pending) {
     pending.delete(id);
     runLocal(p.msg).then(p.resolve, p.reject);
@@ -34,9 +39,13 @@ function startLocal() {
 
 async function runLocal(msg) {
   if (msg.type === 'tile') {
-    const rgba = msg.mode === 'snow' ? await local.snowTile(msg.z, msg.x, msg.y) : await local.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
+    const rgba = msg.mode === 's2' ? await localSentinel.render(msg.z, msg.x, msg.y, msg.mask)
+      : msg.mode === 'snow' ? await local.snowTile(msg.z, msg.x, msg.y)
+      : await local.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
     return createImageBitmap(new ImageData(rgba, 512, 512));
   }
+  if (msg.type === 'scene') return localSentinel.setScene(msg.scene);
+  if (msg.type === 'sceneStats') return localSentinel.stats(msg.items, msg.bbox, msg.withSnow);
   if (msg.type === 'profile') return local.profile(msg.coords, msg.step);
   if (msg.type === 'point') return local.point(msg.lon, msg.lat);
   if (msg.type === 'heights') return local.heights(msg.points);
@@ -75,7 +84,10 @@ if (typeof OffscreenCanvas !== 'undefined') {
 if (!workers.length) startLocal();
 
 // Neighbouring tiles share DEM tiles, so 2x2 blocks of tiles go to one worker.
+// Sentinel-2 work all goes to the last one: one image tile serves many map
+// tiles, and it should be fetched and kept once.
 function pick(msg) {
+  if (msg.type === 'scene' || msg.type === 'sceneStats' || msg.mode === 's2') return workers[workers.length - 1];
   if (msg.type !== 'tile' || workers.length < 2) return workers[0];
   return workers[((msg.x >> 1) + (msg.y >> 1)) % workers.length];
 }
@@ -106,9 +118,15 @@ export const terrain = {
     return Promise.all(workers.map((w) => call({ type: 'open', lines }, null, w)));
   },
   area: (rings) => call({ type: 'area', rings }),
+  // The Sentinel-2 date to draw: { version, mode, items }.
+  setScene: (scene) => {
+    lastScene = scene;
+    return call({ type: 'scene', scene });
+  },
+  sceneStats: (items, bbox, withSnow) => call({ type: 'sceneStats', items, bbox, withSnow }),
 };
 
-const SHADE_URL = /^fl-shade:\/\/(slope|aspect|snow)\/(\d+)\/(\d+)\/(\d+)\?m=(\d+)/;
+const SHADE_URL = /^fl-shade:\/\/(slope|aspect|snow|s2)\/(\d+)\/(\d+)\/(\d+)\?m=(\d+)/;
 
 export function registerShadeProtocol(maplibregl) {
   maplibregl.addProtocol('fl-shade', async (params, abortController) => {
