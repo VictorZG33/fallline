@@ -48,7 +48,7 @@ export function buildStyle(s) {
       // Satellite imagery with simulated snow, drawn by the terrain worker.
       snow: { type: 'raster', tiles: [shadeUrl('snow', 0)], tileSize: 512, maxzoom: 17, attribution: `${ATTR.esri} ${ATTR.dem}` },
       // The latest Sentinel-2 passes, read from Element 84's open archive by the worker.
-      s2: { type: 'raster', tiles: [shadeUrl('s2', 0)], tileSize: 512, minzoom: 8, maxzoom: 13, attribution: ATTR.s2 },
+      s2: { type: 'raster', tiles: [shadeUrl('s2', 0)], tileSize: 512, minzoom: 8, maxzoom: 14, attribution: ATTR.s2 },
       slope: { type: 'raster', tiles: [shadeUrl('slope', s.slopeMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       aspect: { type: 'raster', tiles: [shadeUrl('aspect', s.aspectMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       pistes: { type: 'geojson', data: empty(), attribution: `${ATTR.ski} ${ATTR.osm}`, tolerance: 0.2 },

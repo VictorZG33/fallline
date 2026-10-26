@@ -45,10 +45,12 @@ over the view (60 days, `fields` trimmed to id/bbox/date/cloud/EPSG; COG URLs
 are built from the id), groups them by local day and picks the newest day with
 under 25% cloud over the view, from the scene classification (SCL) read at
 160 m. `js/sentinel.js` runs in the last worker only (one image tile serves
-many map tiles): it reads TCI and SCL tiles with range requests, inflates them
-with `DecompressionStream`, maps pixels through UTM, and in photo mode shades
-saturated non-cloud pixels with `lightTile` under the sun of the pass. Check it
-at Chamonix (`#12.6/45.885/6.93/150/60`), where TCI saturates on snow.
+many map tiles): it reads tiles of the B04/B03/B02 bands (uint16, reflectance
+x 10000, offset already removed) and SCL with range requests, inflates them
+with `DecompressionStream`, maps pixels through UTM, and tones the bands with
+a curve that keeps snow detail (ESA's TCI clips at 0.255, so it isn't used).
+Snow cover sharpens SCL with the 10 m green band. Check it at Alta
+(`#13.6/40.585/-111.64/150/60`) and Chamonix (`#12.6/45.885/6.93/150/60`).
 
 Run stats (`analyze` in `js/info.js`) are all measured along the line: average
 pitch is drop over length, steepest is the worst 30 m, and the profile is coloured

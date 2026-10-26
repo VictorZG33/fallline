@@ -50,7 +50,10 @@ async function search(bbox, signal) {
     const day = new Date(Date.parse(f.properties.datetime) + lon * 240000).toISOString().slice(0, 10);
     if (!days.has(day)) days.set(day, { day, items: [], stats: null, est: 1 });
     const d = days.get(day);
-    d.items.push({ id: f.id, epsg, bbox: f.bbox, time: f.properties.datetime, tci: `${base}/TCI.tif`, scl: `${base}/SCL.tif`, cloud: f.properties['eo:cloud_cover'] / 100 });
+    d.items.push({
+      id: f.id, epsg, bbox: f.bbox, cloud: f.properties['eo:cloud_cover'] / 100,
+      red: `${base}/B04.tif`, green: `${base}/B03.tif`, blue: `${base}/B02.tif`, scl: `${base}/SCL.tif`,
+    });
     d.est = Math.min(d.est, f.properties['eo:cloud_cover'] / 100);
   }
   for (const d of days.values()) d.items.sort((a, b) => a.cloud - b.cloud);
@@ -238,7 +241,10 @@ export function createRecent({ map, settings, onChange }) {
       $('#s2-ago').textContent = '';
     }
     const s = d?.stats;
-    $('#s2-meta').textContent = message || (s && misses(d) ? t('s2.outside') : s
+    // A day under cloud is a white blanket; say so rather than leave it to look like snow.
+    const overcast = !message && s && !misses(d) && s.cloud >= 0.6;
+    $('#s2-meta').classList.toggle('warn', !!overcast);
+    $('#s2-meta').textContent = message || (s && misses(d) ? t('s2.outside') : overcast ? t('s2.overcast', { p: pct(s.cloud) }) : s
       ? [t('s2.cloud', { p: pct(s.cloud) }), s.snow != null ? t('s2.snowShare', { p: pct(s.snow) }) : '', s.cover < 0.95 ? t('s2.partial', { p: pct(s.cover) }) : ''].filter(Boolean).join(' · ')
       : d ? '…' : '');
     $('#s2-days').innerHTML = dates.map((x, i) => {
