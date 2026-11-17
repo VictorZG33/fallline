@@ -57,12 +57,20 @@ function viewFromHash() {
 }
 const startView = viewFromHash() || load('fl.view', null) || { center: stowe ? stowe.center : [-72.79, 44.53], zoom: 13.4, pitch: 62, bearing: stowe ? stowe.bearing : 290 };
 
+// On a Mac, pressing the trackpad with two fingers is a right-click, and
+// dragging with it turns and tilts the view. MapLibre turns the map around its
+// centre, so the same drag to the right turns the view right below the centre
+// but left above it, where the mountains are in a tilted view. On a Mac, a drag
+// to the right always turns the view right, wherever it starts.
+const MAC = /Mac/.test(navigator.platform || navigator.userAgent);
+
 const map = new maplibregl.Map({
   container: 'map',
   style: buildStyle(settings),
   ...startView,
   hash: true,
   maxPitch: 85,
+  aroundCenter: !MAC,
   attributionControl: { compact: true },
   localIdeographFontFamily: '"PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif',
   cancelPendingTileRequestsWhileZooming: true,
