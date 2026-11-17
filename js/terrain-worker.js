@@ -25,6 +25,7 @@ self.onmessage = async ({ data: msg }) => {
       if (cancelled.delete(msg.id)) return;
       const rgba = msg.mode === 's2' ? await sentinel.render(msg.z, msg.x, msg.y, msg.mask)
         : msg.mode === 'snow' ? await engine.snowTile(msg.z, msg.x, msg.y)
+        : msg.mode === 'newsnow' ? await engine.newSnowTile(msg.z, msg.x, msg.y, msg.mask)
         : await engine.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
       if (cancelled.delete(msg.id)) return;
       const bitmap = await createImageBitmap(new ImageData(rgba, 512, 512));
@@ -35,6 +36,9 @@ self.onmessage = async ({ data: msg }) => {
       self.postMessage({ id: msg.id, result: await engine.point(msg.lon, msg.lat) });
     } else if (msg.type === 'open') {
       engine.setOpen(msg.lines);
+      self.postMessage({ id: msg.id, result: true });
+    } else if (msg.type === 'newsnow') {
+      engine.setNewSnow(msg.grid);
       self.postMessage({ id: msg.id, result: true });
     } else if (msg.type === 'heights') {
       self.postMessage({ id: msg.id, result: await engine.heights(msg.points) });

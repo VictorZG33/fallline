@@ -39,9 +39,50 @@ export const slopeColor = (band) => (band < 0 ? null : SLOPE_RGB[band]);
 export const aspectSector = (deg) => Math.round(deg / 45) % 8;
 export const aspectColor = (sector) => ASPECT_RGB[sector];
 
+// New snow bands in centimetres (about 0.5, 2, 4, 8, 12, 20 and 30 inches).
+export const NEW_SNOW_BANDS = [1, 5, 10, 20, 30, 50, 75];
+const NEW_SNOW_RGB = [
+  [150, 205, 255], // 1–5
+  [80, 160, 245],  // 5–10
+  [40, 100, 225],  // 10–20
+  [110, 70, 210],  // 20–30
+  [175, 50, 185],  // 30–50
+  [235, 45, 120],  // 50–75
+  [255, 140, 20],  // 75+
+];
+export function newSnowBand(cm) {
+  let band = -1;
+  for (let i = 0; i < NEW_SNOW_BANDS.length && cm >= NEW_SNOW_BANDS[i]; i++) band = i;
+  return band;
+}
+export const newSnowColor = (band) => NEW_SNOW_RGB[band];
+
+// New snow by place and elevation: a grid of points over a box, each with the
+// depth (cm) at every `de` metres of elevation from `e0` (see js/snowfall.js).
+// Returns NaN outside the box.
+export function newSnowDepth(g, lon, lat, ele) {
+  const gx = ((lon - g.west) / (g.east - g.west)) * (g.nx - 1);
+  const gy = ((g.north - lat) / (g.north - g.south)) * (g.ny - 1);
+  if (!(gx >= 0 && gx <= g.nx - 1 && gy >= 0 && gy <= g.ny - 1)) return NaN;
+  return depthOnGrid(g, gx, gy, ele);
+}
+
+function depthOnGrid(g, gx, gy, ele) {
+  const i0 = Math.min(g.nx - 2, Math.floor(gx)), j0 = Math.min(g.ny - 2, Math.floor(gy));
+  const bin = Math.max(0, Math.min(g.nb - 1.0001, (ele - g.e0) / g.de)), b0 = Math.floor(bin), fb = bin - b0;
+  const d = g.depth, n = g.nb, row = g.nx * n;
+  const a = j0 * row + i0 * n + b0, b = a + n, c = a + row, e = c + n;
+  return lerp2(
+    d[a] + (d[a + 1] - d[a]) * fb, d[b] + (d[b + 1] - d[b]) * fb,
+    d[c] + (d[c + 1] - d[c]) * fb, d[e] + (d[e + 1] - d[e]) * fb,
+    gx - i0, gy - j0,
+  );
+}
+
 // Web Mercator helpers, in global pixel units at zoom z for a 512 px tile grid.
 const worldSize = (z) => DEM_SIZE * 2 ** z;
 const lonToX = (lon, z) => ((lon + 180) / 360) * worldSize(z);
+const xToLon = (x, z) => (x / worldSize(z)) * 360 - 180;
 function latToY(lat, z) {
   const s = Math.sin(Math.max(-85.05, Math.min(85.05, lat)) * D2R);
   return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * worldSize(z);
@@ -449,6 +490,53 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     return out;
   }
 
+  // New snow, coloured by depth at each pixel's own elevation, so the snow
+  // line follows the terrain rather than the model's grid. Grids arrive by
+  // version from the main thread; the last few are kept for tiles in flight.
+  const newSnowGrids = new Map();
+  function setNewSnow(g) {
+    newSnowGrids.delete(g.version);
+    newSnowGrids.set(g.version, g);
+    while (newSnowGrids.size > 4) newSnowGrids.delete(newSnowGrids.keys().next().value);
+  }
+
+  async function newSnowTile(z, x, y, version, size = DEM_SIZE) {
+    const out = new Uint8ClampedArray(size * size * 4);
+    const g = newSnowGrids.get(version);
+    if (!g) return out;
+    const west = xToLon(x * size, z), east = xToLon((x + 1) * size, z);
+    const north = yToLat(y * size, z), south = yToLat((y + 1) * size, z);
+    if (east < g.west || west > g.east || north < g.south || south > g.north) return out;
+    const zd = await bestZoom(z, x, y);
+    if (zd < 0) return out;
+    // The output tile lies inside one DEM tile at zd, so no neighbours are fetched.
+    const s = 2 ** (z - zd);
+    const sample = await sampler(zd, Math.floor((x * size) / s), Math.floor((y * size) / s), Math.ceil(((x + 1) * size) / s) - 1, Math.ceil(((y + 1) * size) / s) - 1);
+    if (!sample) return out;
+    const sx = (g.nx - 1) / (g.east - g.west), sy = (g.ny - 1) / (g.north - g.south);
+    const bands = new Int8Array(size * size).fill(-1);
+    for (let j = 0; j < size; j++) {
+      const gy = (g.north - yToLat(y * size + j + 0.5, z)) * sy;
+      if (gy < 0 || gy > g.ny - 1) continue;
+      for (let i = 0; i < size; i++) {
+        const gx = (xToLon(x * size + i + 0.5, z) - g.west) * sx;
+        if (gx < 0 || gx > g.nx - 1) continue;
+        const ele = sample((x * size + i + 0.5) / s, (y * size + j + 0.5) / s);
+        bands[j * size + i] = newSnowBand(depthOnGrid(g, gx, gy, ele));
+      }
+    }
+    // A darker edge where the band changes, so the bands read over any base map.
+    for (let k = 0; k < size * size; k++) {
+      const band = bands[k];
+      if (band < 0) continue;
+      const i = k % size;
+      const edge = (i < size - 1 && bands[k + 1] !== band) || (k < size * (size - 1) && bands[k + size] !== band);
+      const rgb = NEW_SNOW_RGB[band], f = edge ? 0.62 : 1, o = k * 4;
+      out[o] = rgb[0] * f; out[o + 1] = rgb[1] * f; out[o + 2] = rgb[2] * f; out[o + 3] = 255;
+    }
+    return out;
+  }
+
   // Loads what's needed to read elevation at many points, then returns a
   // synchronous reader: (lon, lat) -> { ele, slope, aspect } or null.
   async function reader(points, zMax = PROFILE_ZOOM) {
@@ -582,7 +670,7 @@ export function createEngine({ decode, fetchFn = (u, o) => fetch(u, o) }) {
     };
   }
 
-  return { shadeTile, snowTile, setOpen, profile, point, heights, area };
+  return { shadeTile, snowTile, newSnowTile, setNewSnow, setOpen, profile, point, heights, area };
 }
 
 // One pass of a 3x3 box filter, edges clamped.

@@ -1,7 +1,7 @@
 // Main-thread side of the terrain engine: a request/reply wrapper around the
-// workers, the `fl-shade://` MapLibre protocol for slope, aspect, winter
-// satellite and Sentinel-2 tiles, and a main-thread fallback for browsers whose
-// workers can't draw to a canvas.
+// workers, the `fl-shade://` MapLibre protocol for slope, aspect, new snow,
+// winter satellite and Sentinel-2 tiles, and a main-thread fallback for
+// browsers whose workers can't draw to a canvas.
 import { createEngine } from './terrain.js';
 import { createSentinel } from './sentinel.js';
 
@@ -12,6 +12,7 @@ let local = null;
 let localSentinel = null;
 let lastOpen = null;
 let lastScene = null;
+let lastNewSnow = null;
 // Two workers where there are cores to spare: the winter satellite map makes
 // every visible tile a fair amount of work.
 const POOL = (navigator.hardwareConcurrency || 2) >= 4 ? 2 : 1;
@@ -31,6 +32,7 @@ function startLocal() {
   localSentinel = createSentinel();
   if (lastOpen) local.setOpen(lastOpen);
   if (lastScene) localSentinel.setScene(lastScene);
+  if (lastNewSnow) local.setNewSnow(lastNewSnow);
   for (const [id, p] of pending) {
     pending.delete(id);
     runLocal(p.msg).then(p.resolve, p.reject);
@@ -41,6 +43,7 @@ async function runLocal(msg) {
   if (msg.type === 'tile') {
     const rgba = msg.mode === 's2' ? await localSentinel.render(msg.z, msg.x, msg.y, msg.mask)
       : msg.mode === 'snow' ? await local.snowTile(msg.z, msg.x, msg.y)
+      : msg.mode === 'newsnow' ? await local.newSnowTile(msg.z, msg.x, msg.y, msg.mask)
       : await local.shadeTile(msg.mode, msg.z, msg.x, msg.y, msg.mask);
     return createImageBitmap(new ImageData(rgba, 512, 512));
   }
@@ -50,6 +53,7 @@ async function runLocal(msg) {
   if (msg.type === 'point') return local.point(msg.lon, msg.lat);
   if (msg.type === 'heights') return local.heights(msg.points);
   if (msg.type === 'open') return local.setOpen(msg.lines);
+  if (msg.type === 'newsnow') return local.setNewSnow(msg.grid);
   if (msg.type === 'area') return local.area(msg.rings);
 }
 
@@ -124,9 +128,15 @@ export const terrain = {
     return call({ type: 'scene', scene });
   },
   sceneStats: (items, bbox, withSnow) => call({ type: 'sceneStats', items, bbox, withSnow }),
+  // A new-snow grid (see js/snowfall.js); tiles go to either worker, so both get it.
+  setNewSnow: (grid) => {
+    lastNewSnow = grid;
+    if (!workers.length) return runLocal({ type: 'newsnow', grid });
+    return Promise.all(workers.map((w) => call({ type: 'newsnow', grid }, null, w)));
+  },
 };
 
-const SHADE_URL = /^fl-shade:\/\/(slope|aspect|snow|s2)\/(\d+)\/(\d+)\/(\d+)\?m=(\d+)/;
+const SHADE_URL = /^fl-shade:\/\/(slope|aspect|newsnow|snow|s2)\/(\d+)\/(\d+)\/(\d+)\?m=(\d+)/;
 
 export function registerShadeProtocol(maplibregl) {
   maplibregl.addProtocol('fl-shade', async (params, abortController) => {

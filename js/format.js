@@ -38,3 +38,12 @@ export function duration(s) {
 export const area = (m2) => (units === 'ft' ? `${nf(1).format(m2 / 4046.86)} ac` : `${nf(1).format(m2 / 10000)} ha`);
 export const count = (n) => nf().format(n);
 export const time = (date) => date.toLocaleTimeString(getLang() === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+
+// Snow depth: whole centimetres, or inches (tenths under an inch).
+export const snowUnit = () => (units === 'ft' ? 'in' : 'cm');
+export function snow(cm, withUnit = true) {
+  if (cm == null || Number.isNaN(cm)) return '–';
+  const v = units === 'ft' ? cm / 2.54 : cm;
+  const s = v > 0 && v < 1 ? (units === 'ft' ? nf(1).format(v) : '<1') : nf().format(Math.round(v));
+  return withUnit ? `${s} ${snowUnit()}` : s;
+}

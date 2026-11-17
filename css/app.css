@@ -130,6 +130,12 @@ ul { padding: 0; list-style: none; }
 .rose text { font: 800 12px var(--display); fill: var(--ink); }
 .rose-labels { display: grid; grid-template-columns: repeat(4, auto); gap: 2px; }
 .rose-labels .band { min-width: 38px; }
+.legend-head .ns-window { margin-left: auto; }
+.legend-head .seg.ns-window button { padding: 4px 9px; font-size: 12px; }
+.legend-foot { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+.legend-foot.warn { color: #ffd27a; }
+span.band { cursor: default; }
+span.band:hover { background: none; }
 .rose-labels .band i { width: 22px; height: 9px; }
 
 .sunbar { width: min(560px, 100%); border-radius: 16px; padding: 10px 12px 10px; }
