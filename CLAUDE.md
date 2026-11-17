@@ -52,6 +52,15 @@ a curve that keeps snow detail (ESA's TCI clips at 0.255, so it isn't used).
 Snow cover sharpens SCL with the 10 m green band. Check it at Alta
 (`#13.6/40.585/-111.64/150/60`) and Chamonix (`#12.6/45.885/6.93/150/60`).
 
+New snow (`js/snowfall.js`): one Open-Meteo request of 8 × 8 locations over the
+view (hourly precipitation, temperature_2m, freezing_level_height; each location
+counts against the free 10,000-a-day per-IP quota, so it fetches again only
+when the view leaves the middle of the box, zooms a lot, or after an hour).
+Each point becomes snow depth for every 100 m of elevation: rain below the
+freezing level minus 300 m, snow above, at a snow-to-liquid ratio from 10:1
+near 0 °C to 15:1. `newSnowTile` in `js/terrain.js` reads that at each pixel's
+DEM height. Check it where it's snowing; Alta is `#12.5/40.585/-111.68/0/0`.
+
 Run stats (`analyze` in `js/info.js`) are all measured along the line: average
 pitch is drop over length, steepest is the worst 30 m, and the profile is coloured
 by that same pitch. `trail()` in `js/pistes.js` joins same-named OSM sections that

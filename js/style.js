@@ -15,6 +15,7 @@ const ATTR = {
   ofm: '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a>',
   osm: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   ski: 'Pistes: <a href="https://openskidata.org">OpenSkiData</a> (ODbL)',
+  meteo: 'New snow: <a href="https://open-meteo.com/">Open-Meteo</a> (CC BY 4.0)',
   s2: `Contains modified <a href="https://dataspace.copernicus.eu">Copernicus Sentinel data</a> ${new Date().getFullYear()}, via <a href="https://element84.com/earth-search/">Earth Search</a>`,
 };
 
@@ -51,6 +52,8 @@ export function buildStyle(s) {
       s2: { type: 'raster', tiles: [shadeUrl('s2', 0)], tileSize: 512, minzoom: 8, maxzoom: 14, attribution: ATTR.s2 },
       slope: { type: 'raster', tiles: [shadeUrl('slope', s.slopeMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
       aspect: { type: 'raster', tiles: [shadeUrl('aspect', s.aspectMask)], tileSize: 512, minzoom: 9, maxzoom: 16 },
+      // Model snowfall by elevation, drawn by the terrain worker (js/snowfall.js).
+      newsnow: { type: 'raster', tiles: [shadeUrl('newsnow', 0)], tileSize: 512, minzoom: 7, maxzoom: 15, attribution: ATTR.meteo },
       pistes: { type: 'geojson', data: empty(), attribution: `${ATTR.ski} ${ATTR.osm}`, tolerance: 0.2 },
       tracks: { type: 'geojson', data: empty() },
       selection: { type: 'geojson', data: empty() },
@@ -91,6 +94,7 @@ export function buildStyle(s) {
 
       { id: 'slope', type: 'raster', source: 'slope', paint: { 'raster-opacity': s.slopeOpacity, 'raster-fade-duration': 120, 'raster-resampling': 'linear' } },
       { id: 'aspect', type: 'raster', source: 'aspect', paint: { 'raster-opacity': s.aspectOpacity, 'raster-fade-duration': 120 } },
+      { id: 'newsnow', type: 'raster', source: 'newsnow', layout: { visibility: 'none' }, paint: { 'raster-opacity': s.newSnowOpacity, 'raster-fade-duration': 120 } },
 
       // Contour layers are added once maplibre-contour has registered its protocol.
 
@@ -195,8 +199,10 @@ export function applyView(map, s) {
   set('s2', 'visibility', vis(s.recent));
   set('slope', 'visibility', vis(s.overlay === 'slope'));
   set('aspect', 'visibility', vis(s.overlay === 'aspect'));
+  set('newsnow', 'visibility', vis(s.overlay === 'newsnow'));
   paint('slope', 'raster-opacity', s.slopeOpacity);
   paint('aspect', 'raster-opacity', s.aspectOpacity);
+  paint('newsnow', 'raster-opacity', s.newSnowOpacity);
   for (const id of PISTE_LAYERS) set(id, 'visibility', vis(s.pistes));
   for (const id of ['place-label', 'peak-label']) set(id, 'visibility', vis(s.labels));
   for (const id of ['contour-line', 'contour-label']) set(id, 'visibility', vis(s.contours));

@@ -22,6 +22,11 @@ FATMAP 被 Strava 收购后下线了。滚落线把它最好用的部分做回�
   blue bands with a curve that keeps snow's sun and shade, where ESA's
   ready-made true-colour image turns all snow flat white. "Snow cover" mode
   shows ESA's snow classification, sharpened to 10 m, over any base map.
+- **New snow**: how much snow fell in the last 24 hours and how much is
+  forecast for the next 24, from weather models via Open-Meteo. It is worked
+  out by elevation (rain below the snow line, snow above it), so the bands
+  follow the terrain; tap a spot for its own numbers. Model data, not
+  measurements: check the resort's report and the avalanche bulletin too.
 - **Slope-angle shading** in 5° bands from 20° up, on the usual avalanche-terrain
   breaks (30°, 35°, 45°). Tap a band in the legend to hide it, for example to
   show only 30° and steeper.
@@ -59,6 +64,7 @@ No build step: plain ES modules served as static files.
 | Contours | [maplibre-contour](https://github.com/onthegomap/maplibre-contour), from the same elevation tiles |
 | Imagery | Esri World Imagery; OpenTopoMap; [OpenFreeMap](https://openfreemap.org) vector tiles for the winter map and labels |
 | Recent satellite | `js/recent.js` finds passes with [Earth Search](https://element84.com/earth-search/) (Element 84's STAC API); `js/sentinel.js`, in the worker, reads the red, green, blue and scene-classification images straight from the open [Sentinel-2 COGs on AWS](https://registry.opendata.aws/sentinel-2-l2a-cogs/) with range requests. No keys |
+| New snow | `js/snowfall.js` fetches hourly precipitation, temperature and freezing level for an 8 × 8 grid over the view from [Open-Meteo](https://open-meteo.com) (free, no key; best model per region), and turns each point into snow depth by elevation; `newSnowTile` in `js/terrain.js` colours each pixel at its DEM height |
 | Winter satellite | `snowTile` in `js/terrain.js`: Esri tiles plus the DEM gradient; forest is found in the image (green, not bright, with crown shadows), leafless hardwoods by colour, and runs from the piste data |
 | Offline | `sw.js` caches the app, every tile you have seen (up to 6,000), and areas you save |
 
@@ -71,6 +77,7 @@ js/terrain.js       elevation tiles → slope/aspect tiles, profiles, point read
 js/terrain-*.js     the worker and its main-thread client
 js/sentinel.js      Sentinel-2: a small GeoTIFF reader, UTM, tile drawing (worker)
 js/recent.js        Sentinel-2: finding passes, picking a clear day, the date bar
+js/snowfall.js      new snow: Open-Meteo grid, depth by elevation, the legend
 js/pistes.js        runs and lifts: packs, Overpass, colours
 js/info.js          the run / lift / track / point sheet and profile chart
 js/gpx.js, sun.js, i18n.js, format.js, offline.js

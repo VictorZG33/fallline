@@ -6,6 +6,7 @@ import { SLOPE_BANDS, ASPECTS, slopeColor, aspectColor } from './terrain.js';
 import { createPisteStore } from './pistes.js';
 import { createInfo } from './info.js';
 import { createRecent } from './recent.js';
+import { createSnowfall } from './snowfall.js';
 import { parseGpx, trackStore } from './gpx.js';
 import { sunPosition, sunTimes } from './sun.js';
 import { t, setLang, defaultLang, translatePage, getLang } from './i18n.js';
@@ -19,7 +20,8 @@ const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(
 
 const DEFAULTS = {
   basemap: 'snow', overlay: 'slope', slopeMask: 0b1111111, aspectMask: 0b11111111,
-  slopeOpacity: 0.6, aspectOpacity: 0.6, exaggeration: 1, pistes: true, labels: true, contours: true,
+  slopeOpacity: 0.6, aspectOpacity: 0.6, newSnowOpacity: 0.7, newSnowWindow: 'past',
+  exaggeration: 1, pistes: true, labels: true, contours: true,
   recent: false, recentMode: 'photo', units: null, lang: null,
 };
 function load(key, fallback) {
@@ -155,6 +157,8 @@ const info = createInfo({
   sheet: $('#sheet-info'),
   body: $('#info-body'),
   onClose: () => document.body.classList.remove('has-info'),
+  // With the new-snow overlay on, a tapped spot also gets its model snowfall.
+  snowAt: (lon, lat, ele) => (settings.overlay === 'newsnow' ? snowfall.at(lon, lat, ele) : null),
   onDeleteTrack: async (id) => {
     tracks = tracks.filter((tr) => tr.id !== id);
     await trackStore.remove(id);
@@ -245,6 +249,7 @@ for (const id of CLICKABLE) {
 
 const legend = $('#legend');
 const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+const snowfall = createSnowfall({ map, settings, legend, onChange: () => save('fl.settings', settings) });
 function renderLegend() {
   legend.hidden = settings.overlay === 'none';
   if (settings.overlay === 'slope') {
@@ -267,10 +272,14 @@ function renderLegend() {
       settings.aspectMask ^= 1 << +el.dataset.sector;
       commit({ masks: true });
     }));
+  } else if (settings.overlay === 'newsnow') {
+    snowfall.render();
   }
 }
 
 // ---- Layers panel ------------------------------------------------------------------------
+
+const OPACITY = { slope: 'slopeOpacity', aspect: 'aspectOpacity', newsnow: 'newSnowOpacity' };
 
 function syncPanel() {
   document.querySelectorAll('[data-setting]').forEach((group) => {
@@ -280,8 +289,9 @@ function syncPanel() {
   $('#snow-note').hidden = settings.basemap !== 'snow';
   $('#recent-note').hidden = !settings.recent;
   $('#toggle-recent').checked = settings.recent;
+  $('#newsnow-note').hidden = settings.overlay !== 'newsnow';
   const op = $('#opacity');
-  op.value = settings.overlay === 'aspect' ? settings.aspectOpacity : settings.slopeOpacity;
+  op.value = settings[OPACITY[settings.overlay]] ?? settings.slopeOpacity;
   op.disabled = settings.overlay === 'none';
   $('#toggle-sun').checked = sun.on;
 }
@@ -290,6 +300,7 @@ function commit({ masks = false, relabel = false } = {}) {
   save('fl.settings', settings);
   if (masks) setMasks(map, settings);
   applyView(map, settings);
+  if (settings.overlay === 'newsnow') snowfall.update();
   // The real-sun hillshade replaces the winter map's fixed one.
   if (sun.on) map.setLayoutProperty('hillshade', 'visibility', 'none');
   renderLegend();
@@ -325,7 +336,8 @@ document.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('
   commit();
 }));
 $('#opacity').addEventListener('input', (e) => {
-  settings[settings.overlay === 'aspect' ? 'aspectOpacity' : 'slopeOpacity'] = +e.target.value;
+  if (!OPACITY[settings.overlay]) return;
+  settings[OPACITY[settings.overlay]] = +e.target.value;
   commit();
 });
 
@@ -384,6 +396,7 @@ $('#sun-now').addEventListener('click', () => {
   updateSun();
 });
 map.on('moveend', updateSun);
+map.on('moveend', () => settings.overlay === 'newsnow' && snowfall.update());
 
 // ---- Recent satellite (Sentinel-2) ------------------------------------------------------
 

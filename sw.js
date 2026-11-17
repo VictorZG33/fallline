@@ -1,6 +1,6 @@
 // Service worker: keeps the app shell, resort packs and every map tile it has
 // seen, so the map keeps working where the mountain has no signal.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL = `fl-shell-${VERSION}`;
 const DATA = 'fl-data';
 const TILES = 'fl-tiles';
@@ -11,7 +11,7 @@ const SHELL_FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/style.js', 'js/terrain.js', 'js/terrain-client.js', 'js/terrain-worker.js',
   'js/pistes.js', 'js/info.js', 'js/gpx.js', 'js/sun.js', 'js/i18n.js', 'js/format.js', 'js/offline.js',
-  'js/sentinel.js', 'js/recent.js',
+  'js/sentinel.js', 'js/recent.js', 'js/snowfall.js',
   'vendor/maplibre-gl/maplibre-gl.mjs', 'vendor/maplibre-gl/maplibre-gl-worker.mjs', 'vendor/maplibre-gl/maplibre-gl.css',
   'vendor/maplibre-contour/maplibre-contour.mjs',
   'data/resorts.json', 'data/skiareas.json', 'icons/icon.svg', 'icons/icon-192.png',

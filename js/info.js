@@ -232,7 +232,7 @@ function flyAlong(map, terrain, coords, onEnd) {
 
 // ---- The sheet --------------------------------------------------------------------
 
-export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }) {
+export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack, snowAt }) {
   let token = 0;
   let stopFlight = null;
   // While flying, the sheet and legend step aside; a button (or any touch on
@@ -449,11 +449,14 @@ export function createInfo({ map, terrain, sheet, body, onClose, onDeleteTrack }
     const r = await terrain.point(lngLat.lng, lngLat.lat).catch(() => null);
     if (my !== token) return;
     const dir = r?.aspect != null ? ASPECTS[aspectSector(r.aspect)] : null;
+    // Model snowfall at this spot's own elevation, while that overlay is on.
+    const snow = r && snowAt?.(lngLat.lng, lngLat.lat, r.ele);
     body.innerHTML = `<p class="eyebrow">${t('info.point')} · ${lngLat.lat.toFixed(5)}, ${lngLat.lng.toFixed(5)}</p>
       ${r ? `<dl class="stats">
         ${stat(t('info.elevation'), fmt.elevation(r.ele))}
         ${stat(t('info.slope'), `${chip(r.slope)}${fmt.degrees(r.slope, 1)}`)}
         ${stat(t('info.aspect'), dir && r.slope >= 3 ? `${esc(t(`aspect.${dir}`))} · ${fmt.degrees(r.aspect)}` : '–')}
+        ${snow ? `${stat(t('info.newSnowPast'), fmt.snow(snow.past))}${stat(t('info.newSnowNext'), fmt.snow(snow.next))}` : ''}
       </dl>` : `<p class="muted">${t('info.noDem')}</p>`}`;
   }
 
